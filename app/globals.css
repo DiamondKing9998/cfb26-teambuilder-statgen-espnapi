@@ -1,6 +1,6 @@
 /*
- * Styles for the vibrant, filter-only layout
- * (No changes from previous CSS, it's already designed for the filters only)
+ * Updated Styles for the enhanced layout
+ * (Added styles for input field, submit/reset buttons, and player results section)
  */
 
 :root {
@@ -12,6 +12,8 @@
     --color-text-light: #ecf0f1;
     --color-accent-green: #28a745; /* Success green */
     --color-accent-purple: #6f42c1; /* Deep purple */
+    --color-success: #28a745; /* For successful actions/messages */
+    --color-error: #dc3545; /* For error messages */
 }
 
 body {
@@ -50,22 +52,28 @@ header p {
 
 .main-container {
     display: flex;
-    justify-content: center;
-    align-items: flex-start;
-    flex-grow: 1;
+    flex-grow: 1; /* Allows it to take up remaining vertical space */
     padding: 20px;
+    gap: 20px; /* Space between filter sidebar and results */
 }
 
 .filter-sidebar {
-    flex: 0 0 350px;
+    flex: 0 0 350px; /* Fixed width for desktop, but allows shrinking */
     background-color: var(--color-card-bg);
     border-radius: 12px;
     box-shadow: 0 6px 15px rgba(0,0,0,0.15);
     padding: 30px;
     display: flex;
     flex-direction: column;
-    gap: 25px;
+    gap: 25px; /* Space between filter groups */
     border: 1px solid rgba(0,0,0,0.05);
+}
+
+.filter-form {
+    display: flex;
+    flex-direction: column;
+    gap: 25px;
+    flex-grow: 1; /* Make the form fill the sidebar */
 }
 
 .filter-group {
@@ -73,7 +81,7 @@ header p {
     padding-bottom: 20px;
 }
 
-.filter-group:last-child {
+.filter-group:last-of-type { /* Target last filter group specifically */
     border-bottom: none;
     padding-bottom: 0;
 }
@@ -88,7 +96,8 @@ header p {
     letter-spacing: 0.5px;
 }
 
-.filter-group select {
+.filter-group select,
+.filter-group input[type="text"] {
     width: 100%;
     padding: 12px;
     border: 2px solid var(--color-accent-purple);
@@ -96,6 +105,11 @@ header p {
     background-color: #f8fcfd;
     font-size: 1.05em;
     color: var(--color-text-dark);
+    transition: all 0.3s ease;
+}
+
+/* Specific styling for select dropdown arrow */
+.filter-group select {
     appearance: none;
     -webkit-appearance: none;
     -moz-appearance: none;
@@ -104,38 +118,126 @@ header p {
     background-position: right 15px center;
     background-size: 1em;
     cursor: pointer;
-    transition: all 0.3s ease;
 }
 
-.filter-group select:focus {
+.filter-group select:focus,
+.filter-group input[type="text"]:focus {
     outline: none;
     border-color: var(--color-secondary);
     box-shadow: 0 0 0 3px rgba(255, 87, 34, 0.3);
 }
 
-.loading-spinner {
-    text-align: center;
-    padding: 20px;
-    font-style: italic;
-    color: #666;
+.button-group {
+    display: flex;
+    gap: 15px; /* Space between buttons */
+    margin-top: auto; /* Push buttons to the bottom of the sidebar */
+    padding-top: 10px; /* Add some padding above buttons */
+    border-top: 2px solid var(--color-background);
+}
+
+.submit-button,
+.reset-button {
+    flex: 1; /* Make buttons take equal width */
+    padding: 14px 20px; /* Larger padding for buttons */
+    border: none;
+    border-radius: 8px;
+    font-size: 1.1em;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.3s ease, transform 0.1s ease;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+.submit-button {
+    background-color: var(--color-accent-green); /* Green for submit */
+    color: white;
+}
+
+.submit-button:hover {
+    background-color: #218838; /* Darker green on hover */
+    transform: translateY(-1px);
 }
 
 .reset-button {
-    background-color: #6c757d; /* A muted gray for reset */
+    background-color: #6c757d; /* Muted gray for reset */
     color: white;
-    padding: 12px 20px;
-    border: none;
-    border-radius: 8px;
-    font-size: 1.05em;
-    cursor: pointer;
-    transition: background-color 0.3s ease;
-    margin-top: 10px; /* Space above the button */
 }
 
 .reset-button:hover {
-    background-color: #5a6268;
+    background-color: #5a6268; /* Darker gray on hover */
+    transform: translateY(-1px);
 }
 
+.player-results {
+    flex-grow: 1; /* Takes up remaining horizontal space */
+    background-color: var(--color-card-bg);
+    border-radius: 12px;
+    box-shadow: 0 6px 15px rgba(0,0,0,0.15);
+    padding: 30px;
+    min-height: 200px; /* Ensure it has some height even when empty */
+    display: flex;
+    flex-direction: column;
+}
+
+.player-results h2 {
+    margin-top: 0;
+    margin-bottom: 20px;
+    color: var(--color-primary);
+    font-size: 1.8em;
+    text-align: center;
+}
+
+.player-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); /* Slightly wider cards */
+    gap: 20px;
+    flex-grow: 1; /* Allow grid to grow */
+}
+
+.player-card {
+    border: 1px solid #e0e0e0; /* Lighter border */
+    border-radius: 10px; /* Slightly more rounded */
+    padding: 18px;
+    text-align: center;
+    background-color: #ffffff;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08); /* Softer shadow */
+    transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+}
+
+.player-card:hover {
+    transform: translateY(-4px); /* More pronounced lift */
+    box-shadow: 0 8px 16px rgba(0,0,0,0.15); /* More prominent shadow on hover */
+}
+
+.player-card h4 {
+    margin-top: 0;
+    margin-bottom: 8px;
+    color: var(--color-text-dark);
+    font-size: 1.3em;
+}
+
+.player-card p {
+    margin: 4px 0;
+    color: #555;
+    font-size: 0.9em;
+}
+
+.loading-message,
+.error-message {
+    text-align: center;
+    padding: 20px;
+    font-style: italic;
+    font-size: 1.1em;
+}
+
+.loading-message {
+    color: #666;
+}
+
+.error-message {
+    color: var(--color-error);
+    font-weight: bold;
+}
 
 footer {
     background-color: var(--color-text-dark);
@@ -157,8 +259,14 @@ footer {
     .filter-sidebar {
         flex: 0 0 auto;
         width: 100%;
-        max-width: 350px;
+        max-width: 380px; /* Max width for sidebar on mobile */
         margin-bottom: 20px;
+        padding: 25px 20px;
+    }
+
+    .player-results {
+        width: 100%;
+        max-width: 380px; /* Max width for results on mobile */
         padding: 25px 20px;
     }
 
