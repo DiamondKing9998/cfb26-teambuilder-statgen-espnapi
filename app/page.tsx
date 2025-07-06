@@ -2,71 +2,98 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 
-// --- Interfaces ---
-interface Player {
+// --- Interfaces based on API-Sports American Football v1 documentation ---
+// Note: API-Sports uses a `response` array wrapper in their JSON.
+
+// Player Interface
+interface ApiSportsPlayer {
     id: number;
-    firstName: string;
-    lastName: string;
-    teamName: string; // Or college name if SportsDataIO provides it this way
-    position: string;
-    season: number; // API might return season as a number
-    // Add other relevant stats/attributes from SportsDataIO player profiles
-    // e.g., passingYards, rushingYards, tackles, interceptions etc.
-    // For this POC, we'll just use basic info.
+    name: string; // Full name as returned by API
+    firstname: string;
+    lastname: string;
+    birth: {
+        date: string; // e.g., "1999-01-15"
+        country: string;
+    };
+    height: {
+        feet: number | null;
+        inches: number | null;
+    };
+    weight: {
+        pounds: number | null;
+    };
+    college: string; // This API explicitly has a college field for players
+    draft: {
+        round: number | null;
+        pick: number | null;
+        team: ApiSportsTeam | null;
+    };
+    // Position object might be slightly different here
+    position: {
+        name: string; // e.g., "Quarterback"
+        abbr: string; // e.g., "QB"
+    };
+    team: {
+        id: number;
+        name: string; // e.g., "LSU Tigers"
+        logo: string;
+    };
     jersey?: number;
-    status?: string; // e.g., "Active"
+    season: number; // The season this player data corresponds to (important for filtering)
 }
 
-// Interfaces for fetched filter options from SportsDataIO
-interface ApiTeam {
-    TeamID: number;
-    School: string; // The college name
-    Key: string; // Abbreviation, e.g., 'LSU'
-    // ... other team properties
+// Team Interface (for college filter)
+interface ApiSportsTeam {
+    id: number;
+    name: string; // e.g., "LSU Tigers"
+    logo: string;
+    country: {
+        id: number;
+        name: string;
+        code: string;
+    };
+    // ... other team details
 }
 
-interface ApiPlayerDetails {
-    PlayerID: number;
-    FirstName: string;
-    LastName: string;
-    Position: string;
-    College: string; // Assuming SportsDataIO provides this directly on player
-    Season: number;
-    // ... other player properties
-}
-
+// FilterSidebar Props
 interface FilterSidebarProps {
     onApplyFilters: (filters: { college: string; year: string; position: string; playerName: string }) => void;
-    colleges: string[];
+    colleges: { name: string; id: number }[]; // Now passing objects with name and ID
     years: string[];
     positions: string[];
     isLoadingFilters: boolean;
     onResetFilters: () => void;
+    currentCollege: string;
+    currentYear: string;
+    currentPosition: string;
+    currentSearchName: string;
 }
 
+// PlayerCard Props
 interface PlayerCardProps {
-    player: Player;
+    player: ApiSportsPlayer;
 }
 
+// PlayerResults Props
 interface PlayerResultsProps {
-    players: Player[];
+    players: ApiSportsPlayer[];
     isLoadingPlayers: boolean;
     error: string | null;
 }
 
-// --- PlayerCard Component (now actively used) ---
+// --- PlayerCard Component ---
 const PlayerCard: React.FC<PlayerCardProps> = ({ player }) => {
     return (
         <div className="player-card">
-            <h4>{player.firstName} {player.lastName}</h4>
-            <p>{player.college || player.teamName} | {player.position} | {player.season} Season</p>
+            <h4>{player.name}</h4>
+            <p>{player.college || 'N/A College'} | {player.position?.abbr || 'N/A Pos'} | {player.season} Season</p>
             {player.jersey && <p>Jersey: #{player.jersey}</p>}
-            {/* Add more player details here as needed */}
+            {/* Add more player details if desired, e.g., height/weight */}
         </div>
     );
 };
 
-// --- PlayerResults Component (re-added to display search results) ---
+// --- PlayerResults Component ---
 const PlayerResults: React.FC<PlayerResultsProps> = ({ players, isLoadingPlayers, error }) => {
     if (isLoadingPlayers) {
         return (
@@ -86,21 +113,21 @@ const PlayerResults: React.FC<PlayerResultsProps> = ({ players, isLoadingPlayers
 
     return (
         <main className="player-results">
-            <h2>Player Profiles</h2>
+            <h2>College Football Player Profiles</h2>
             <div className="player-grid">
                 {players.length > 0 ? (
                     players.map((player) => (
                         <PlayerCard key={player.id} player={player} />
                     ))
                 ) : (
-                    <p style={{ textAlign: 'center', gridColumn: '1 / -1' }}>No players found matching your criteria. Try adjusting your filters.</p>
+                    <p style={{ textAlign: 'center', gridColumn: '1 / -1' }}>No College Football players found matching your criteria. Try adjusting your filters.</p>
                 )}
             </div>
         </main>
     );
 };
 
-// --- FilterSidebar Component (now has local state for input values and a submit button) ---
+// --- FilterSidebar Component ---
 const FilterSidebar: React.FC<FilterSidebarProps> = ({
     onApplyFilters,
     colleges,
@@ -108,12 +135,30 @@ const FilterSidebar: React.FC<FilterSidebarProps> = ({
     positions,
     isLoadingFilters,
     onResetFilters,
+    currentCollege,
+    currentYear,
+    currentPosition,
+    currentSearchName,
 }) => {
-    // Local state for each filter input
-    const [collegeValue, setCollegeValue] = useState<string>('');
-    const [yearValue, setYearValue] = useState<string>('');
-    const [positionValue, setPositionValue] = useState<string>('');
-    const [playerNameValue, setPlayerNameValue] = useState<string>('');
+    const [collegeValue, setCollegeValue] = useState<string>(currentCollege);
+    const [yearValue, setYearValue] = useState<string>(currentYear);
+    const [positionValue, setPositionValue] = useState<string>(currentPosition);
+    const [playerNameValue, setPlayerNameValue] = useState<string>(currentSearchName);
+
+    // Update local state when parent's current filters change (e.g., after a reset)
+    useEffect(() => {
+        setCollegeValue(currentCollege);
+    }, [currentCollege]);
+    useEffect(() => {
+        setYearValue(currentYear);
+    }, [currentYear]);
+    useEffect(() => {
+        setPositionValue(currentPosition);
+    }, [currentPosition]);
+    useEffect(() => {
+        setPlayerNameValue(currentSearchName);
+    }, [currentSearchName]);
+
 
     const handleSubmit = (event: React.FormEvent) => {
         event.preventDefault(); // Prevent page reload
@@ -121,7 +166,7 @@ const FilterSidebar: React.FC<FilterSidebarProps> = ({
             college: collegeValue,
             year: yearValue,
             position: positionValue,
-            playerName: playerNameValue.trim(), // Trim whitespace
+            playerName: playerNameValue.trim(),
         });
     };
 
@@ -130,29 +175,29 @@ const FilterSidebar: React.FC<FilterSidebarProps> = ({
         setYearValue('');
         setPositionValue('');
         setPlayerNameValue('');
-        onResetFilters(); // Also notify parent to reset its state
+        onResetFilters();
     };
 
     return (
         <aside className="filter-sidebar">
-            <h2>Filter Players</h2>
+            <h2>College Football Player Filters</h2>
             <form onSubmit={handleSubmit} className="filter-form">
                 {isLoadingFilters ? (
                     <div className="loading-spinner">Loading filters...</div>
                 ) : (
                     <>
                         <div className="filter-group">
-                            <h3>College</h3>
+                            <h3>College Team</h3>
                             <select value={collegeValue} onChange={(e) => setCollegeValue(e.target.value)}>
                                 <option value="">All Colleges</option>
                                 {colleges.map((college) => (
-                                    <option key={college} value={college}>{college}</option>
+                                    <option key={college.id} value={college.name}>{college.name}</option>
                                 ))}
                             </select>
                         </div>
 
                         <div className="filter-group">
-                            <h3>Year</h3>
+                            <h3>Season (Year)</h3>
                             <select value={yearValue} onChange={(e) => setYearValue(e.target.value)}>
                                 <option value="">All Years</option>
                                 {years.map((year) => (
@@ -194,7 +239,6 @@ const FilterSidebar: React.FC<FilterSidebarProps> = ({
 
 // --- Main App Component ---
 const App: React.FC = () => {
-    // State for filter values that will be applied on submit
     const [appliedFilters, setAppliedFilters] = useState({
         college: '',
         year: '',
@@ -202,61 +246,121 @@ const App: React.FC = () => {
         playerName: '',
     });
 
-    // State for the actual player results
-    const [players, setPlayers] = useState<Player[]>([]);
+    const [players, setPlayers] = useState<ApiSportsPlayer[]>([]);
     const [isLoadingPlayers, setIsLoadingPlayers] = useState(false);
     const [playerError, setPlayerError] = useState<string | null>(null);
 
-    // State for filter dropdown options
     const [isLoadingFilters, setIsLoadingFilters] = useState(true);
-    const [apiColleges, setApiColleges] = useState<string[]>([]);
+    const [apiColleges, setApiColleges] = useState<{ name: string; id: number }[]>([]);
     const [apiYears, setApiYears] = useState<string[]>([]);
     const [apiPositions, setApiPositions] = useState<string[]>([]);
 
-    // --- CONCEPTUAL API KEY & BASE URL ---
-    // !!! IMPORTANT: Replace with your actual SportsDataIO API Key and Base URL !!!
-    // Get your key from SportsDataIO dashboard. For Vercel deployment, use environment variables.
-    const SPORTSDATAIO_API_KEY = process.env.NEXT_PUBLIC_SPORTSDATAIO_API_KEY || 'YOUR_SPORTSDATAIO_API_KEY';
-    // Example College Football v3 Base URL (verify with SportsDataIO docs)
-    const SPORTSDATAIO_BASE_URL = 'https://api.sportsdata.io/v3/cfb/scores/json'; // Adjust based on specific endpoint group
+    // Store the mapping of college name to ID for API requests
+    const [collegeNameToIdMap, setCollegeNameToIdMap] = useState<Map<string, number>>(new Map());
+
+    // --- API-Sports American Football v1 KEY & HOST ---
+    // YOUR API KEY IS EMBEDDED HERE
+    const API_SPORTS_API_KEY = 'f307e2d6f7c992f91cdcf3abb81d3fad';
+    const API_SPORTS_API_HOST = 'v1.american-football.api-sports.io';
+    const API_SPORTS_BASE_URL = `https://${API_SPORTS_API_HOST}`;
+
+    // NCAAF League ID (You'd typically fetch this from /leagues once)
+    // Based on API-Sports American Football documentation example for 'NCAAF', ID is 1.
+    const NCAAF_LEAGUE_ID = 1;
 
     // 1. Fetch data for filter dropdowns (runs once on mount)
     useEffect(() => {
         const fetchFilterOptions = async () => {
             setIsLoadingFilters(true);
             try {
-                // *** CONCEPTUAL SportsDataIO API Calls for filter options ***
-                // You'll need to replace these with actual API calls from SportsDataIO docs
-                // For 'Colleges' (Teams):
-                // Look for an endpoint like /Teams or /Colleges
-                // Example: /teams (might return a list of college teams with names)
-                const collegesResponse = await fetch(`https://mockapi.test/cfb/teams.json`); // REPLACE THIS
-                const collegesData: ApiTeam[] = await collegesResponse.json();
-                const collegeNames = collegesData.map(team => team.School).sort();
-                setApiColleges(collegeNames);
+                // Fetch Seasons (Years) for NCAAF League
+                const yearsResponse = await fetch(`${API_SPORTS_BASE_URL}/seasons?league=${NCAAF_LEAGUE_ID}`, {
+                    headers: {
+                        'x-rapidapi-key': API_SPORTS_API_KEY,
+                        'x-rapidapi-host': API_SPORTS_API_HOST,
+                    },
+                });
+                if (!yearsResponse.ok) throw new Error(`API Error fetching years: ${yearsResponse.status} ${yearsResponse.statusText}`);
+                const yearsData: { response: number[] } = await yearsResponse.json();
+                const filteredYears = yearsData.response
+                    .filter(year => year <= new Date().getFullYear()) // Only show current/past years
+                    .map(year => year.toString())
+                    .sort((a, b) => parseInt(b) - parseInt(a));
+                setApiYears(filteredYears);
 
-                // For 'Years' (Seasons):
-                // Look for an endpoint like /Seasons or /Scores/CurrentSeason
-                // Example: /CurrentSeason, then infer past seasons, or /Seasons for list
-                const currentYear = new Date().getFullYear();
-                const years = Array.from({ length: 10 }, (_, i) => (currentYear - i).toString()).sort((a, b) => parseInt(b) - parseInt(a));
-                setApiYears(years); // SportsDataIO might have a dedicated Seasons endpoint
+                // Fetch Teams (Colleges) for NCAAF League (use the most recent season available for teams)
+                // Using a default of current year if filteredYears is empty.
+                const seasonForTeams = filteredYears.length > 0 ? filteredYears[0] : new Date().getFullYear().toString();
+                const teamsResponse = await fetch(`${API_SPORTS_BASE_URL}/teams?league=${NCAAF_LEAGUE_ID}&season=${seasonForTeams}`, {
+                    headers: {
+                        'x-rapidapi-key': API_SPORTS_API_KEY,
+                        'x-rapidapi-host': API_SPORTS_API_HOST,
+                    },
+                });
+                if (!teamsResponse.ok) throw new Error(`API Error fetching teams: ${teamsResponse.status} ${teamsResponse.statusText}`);
+                const teamsData: { response: ApiSportsTeam[] } = await teamsResponse.json();
+                const collegesList = teamsData.response
+                    .map(team => ({ name: team.name, id: team.id }))
+                    .sort((a, b) => a.name.localeCompare(b.name));
+                setApiColleges(collegesList);
 
-                // For 'Positions':
-                // Often, you might get a list of common positions, or derive from players.
-                const dummyPositions = ['QB', 'RB', 'WR', 'TE', 'OL', 'DL', 'LB', 'DB', 'ATH', 'K', 'P', 'LS', 'DL', 'DE', 'DT', 'ILB', 'OLB', 'CB', 'S', 'FS', 'SS'];
-                setApiPositions(Array.from(new Set(dummyPositions)).sort()); // Remove duplicates and sort
+                const nameToIdMap = new Map<string, number>();
+                collegesList.forEach(c => nameToIdMap.set(c.name, c.id));
+                setCollegeNameToIdMap(nameToIdMap);
 
-            } catch (error) {
+
+                // Fetch Positions
+                // This API doesn't seem to have a dedicated /positions endpoint.
+                // We'll fetch players for a recent season and extract unique positions from them.
+                // This might be rate-limited, so for POC, a common list is often safer.
+                // Let's try to fetch a small set of players to get positions if possible, otherwise fall back.
+                const positionsList: string[] = [];
+                try {
+                    const playersForPositionsResponse = await fetch(`${API_SPORTS_BASE_URL}/players?league=${NCAAF_LEAGUE_ID}&season=${seasonForTeams}&limit=100`, { // Fetch a small batch
+                        headers: {
+                            'x-rapidapi-key': API_SPORTS_API_KEY,
+                            'x-rapidapi-host': API_SPORTS_API_HOST,
+                        },
+                    });
+                     if (playersForPositionsResponse.ok) {
+                        const playersForPositionsData: { response: ApiSportsPlayer[] } = await playersForPositionsResponse.json();
+                        const uniquePositions = new Set<string>();
+                        playersForPositionsData.response.forEach(p => {
+                            if (p.position?.abbr) {
+                                uniquePositions.add(p.position.abbr);
+                            }
+                        });
+                        positionsList.push(...Array.from(uniquePositions).sort());
+                    } else {
+                        console.warn(`Could not fetch players for positions: ${playersForPositionsResponse.statusText}. Using common positions list.`);
+                    }
+                } catch (posError) {
+                    console.warn("Error fetching positions from players API, using common list:", posError);
+                }
+
+                // Fallback to common positions if API fetching failed or was empty
+                if (positionsList.length === 0) {
+                     const commonPositions = [
+                        'QB', 'RB', 'WR', 'TE', 'C', 'G', 'T', 'DE', 'DT', 'LB', 'CB', 'S',
+                        'K', 'P', 'LS', 'ATH', 'DL', 'DB', 'FB', 'OT', 'OG', 'C', 'DT', 'DE',
+                        'OLB', 'ILB', 'CB', 'SS', 'FS'
+                    ];
+                    setApiPositions(Array.from(new Set(commonPositions)).sort());
+                } else {
+                    setApiPositions(positionsList);
+                }
+
+
+            } catch (error: any) {
                 console.error('Error fetching filter options:', error);
-                // Handle error
+                setPlayerError(`Failed to load filter options: ${error.message || 'Unknown error'}`);
             } finally {
                 setIsLoadingFilters(false);
             }
         };
 
         fetchFilterOptions();
-    }, []); // Runs once on component mount
+    }, [API_SPORTS_API_KEY, API_SPORTS_API_HOST]); // Dependencies for useEffect
 
     // 2. Fetch players based on applied filters (runs when appliedFilters state changes)
     const fetchPlayers = useCallback(async () => {
@@ -266,93 +370,78 @@ const App: React.FC = () => {
 
         // Only fetch if at least one filter is applied or player name is entered
         const isAnyFilterApplied = Object.values(appliedFilters).some(value => value !== '');
-
         if (!isAnyFilterApplied) {
             setIsLoadingPlayers(false);
-            return; // Don't fetch if no filters are selected
+            return;
         }
 
         try {
-            // *** CONCEPTUAL SportsDataIO API Call for players ***
-            // This is the most complex part and highly dependent on SportsDataIO's specific endpoints.
-            // You'll likely need to use an endpoint like:
-            // - /Players (to get a list of all players and then filter client-side if API doesn't support complex queries)
-            // - /PlayersByTeam/{team} (if you filtered by college first)
-            // - /PlayersBySeason/{season} (if you filtered by year first)
-            // - A search endpoint if available.
-            // SportsDataIO often has specific player endpoints for different sports/data levels.
-
-            let url = `${SPORTSDATAIO_BASE_URL}/Players`; // Base endpoint (might need more specifics)
-            const queryParams = [];
+            // Construct query parameters for the /players endpoint
+            const queryParams = new URLSearchParams();
+            queryParams.append('league', NCAAF_LEAGUE_ID.toString()); // Always filter by NCAAF league
 
             if (appliedFilters.year) {
-                // If the API supports filtering by season directly in the URL
-                // e.g., /Players/Season/{season} or query parameter like ?season={season}
-                url = `${SPORTSDATAIO_BASE_URL}/Players/${appliedFilters.year}`; // Example structure
+                queryParams.append('season', appliedFilters.year);
             }
             if (appliedFilters.college) {
-                // You'd need to convert college name to a TeamID or Key first if API needs it
-                // e.g., filter through fetched teams to get the ID for "LSU"
-                // For simplicity here, we'll assume a direct string filter is possible
-                queryParams.push(`team=${appliedFilters.college}`); // Conceptual
+                // Get the team ID from the college name
+                const teamId = collegeNameToIdMap.get(appliedFilters.college);
+                if (teamId) {
+                    queryParams.append('team', teamId.toString());
+                } else {
+                    // This might happen if the selected college isn't in the map (e.g., stale data)
+                    // You could show an error or just proceed without a team filter
+                    setPlayerError(`Selected college "${appliedFilters.college}" not found. Please try another.`);
+                    setIsLoadingPlayers(false);
+                    return;
+                }
             }
             if (appliedFilters.position) {
-                queryParams.push(`position=${appliedFilters.position}`); // Conceptual
+                queryParams.append('position', appliedFilters.position); // API uses abbr (e.g., 'QB')
             }
             if (appliedFilters.playerName) {
-                // Many APIs have a search endpoint or support a 'name' parameter
-                // This is often tricky: some support partial match, others exact.
-                queryParams.push(`name=${encodeURIComponent(appliedFilters.playerName)}`); // Conceptual
+                queryParams.append('search', appliedFilters.playerName); // API uses 'search' for player name
             }
 
-            if (queryParams.length > 0) {
-                url += `?${queryParams.join('&')}`;
-            }
+            const url = `${API_SPORTS_BASE_URL}/players?${queryParams.toString()}`;
 
-            // You'll need to add your API key to the headers for SportsDataIO
             const response = await fetch(url, {
                 headers: {
-                    'Ocp-Apim-Subscription-Key': SPORTSDATAIO_API_KEY, // Standard header for SportsDataIO
+                    'x-rapidapi-key': API_SPORTS_API_KEY,
+                    'x-rapidapi-host': API_SPORTS_API_HOST,
                 },
             });
 
             if (!response.ok) {
-                throw new Error(`API Error: ${response.status} ${response.statusText}`);
+                const errorBody = await response.text(); // Get raw error message from API
+                throw new Error(`API Error: ${response.status} ${response.statusText}. Details: ${errorBody}`);
             }
 
-            const data: ApiPlayerDetails[] = await response.json();
+            const data: { response: ApiSportsPlayer[] } = await response.json();
 
-            // Map API response to your Player interface
-            const mappedPlayers: Player[] = data.map(p => ({
-                id: p.PlayerID,
-                firstName: p.FirstName,
-                lastName: p.LastName,
-                teamName: p.College || 'N/A', // Use College field if available
-                college: p.College || 'N/A',
-                position: p.Position,
-                season: p.Season,
-                // Map other fields as needed
-            }));
+            let finalPlayers = data.response || [];
 
-            // Client-side filtering for player name if API doesn't fully support it
-            // Or if you only fetched a broad list and need to refine.
-            const finalPlayers = appliedFilters.playerName
-                ? mappedPlayers.filter(p =>
-                      p.firstName.toLowerCase().includes(appliedFilters.playerName.toLowerCase()) ||
-                      p.lastName.toLowerCase().includes(appliedFilters.playerName.toLowerCase())
-                  )
-                : mappedPlayers;
+            // Perform client-side filtering if necessary, or refine search results
+            // The API handles search well, but a final check for robustness
+            if (appliedFilters.playerName) {
+                 const searchLower = appliedFilters.playerName.toLowerCase();
+                 finalPlayers = finalPlayers.filter(p =>
+                     p.name.toLowerCase().includes(searchLower) ||
+                     (p.firstname && p.firstname.toLowerCase().includes(searchLower)) ||
+                     (p.lastname && p.lastname.toLowerCase().includes(searchLower))
+                 );
+            }
 
             setPlayers(finalPlayers);
 
         } catch (error: any) {
             console.error('Error fetching players:', error);
-            setPlayerError(error.message || 'Failed to fetch players.');
+            setPlayerError(error.message || 'Failed to fetch players. Check API key and network.');
             setPlayers([]);
         } finally {
             setIsLoadingPlayers(false);
         }
-    }, [appliedFilters, SPORTSDATAIO_API_KEY, SPORTSDATAIO_BASE_URL]); // Dependencies for useCallback
+    }, [appliedFilters, API_SPORTS_API_KEY, API_SPORTS_API_HOST, collegeNameToIdMap]); // Dependencies for useCallback
 
     // Trigger player fetch whenever appliedFilters change
     useEffect(() => {
@@ -372,8 +461,8 @@ const App: React.FC = () => {
     return (
         <div className="App">
             <header>
-                <h1>CFB Player Search</h1>
-                <p>Find players by college, year, position, or name.</p>
+                <h1>College Football Player Search</h1>
+                <p>Find college players by team, season, position, or name.</p>
             </header>
 
             <div className="main-container">
@@ -384,10 +473,10 @@ const App: React.FC = () => {
                     positions={apiPositions}
                     isLoadingFilters={isLoadingFilters}
                     onResetFilters={handleResetAllFilters}
-                    // Pass current applied filters back to sidebar to control dropdowns
                     currentCollege={appliedFilters.college}
                     currentYear={appliedFilters.year}
                     currentPosition={appliedFilters.position}
+                    currentSearchName={appliedFilters.playerName}
                 />
                 <PlayerResults
                     players={players}
@@ -397,7 +486,7 @@ const App: React.FC = () => {
             </div>
 
             <footer>
-                <p>&copy; 2025 CFB Player Database POC</p>
+                <p>&copy; 2025 College Football Player Database POC</p>
             </footer>
         </div>
     );
