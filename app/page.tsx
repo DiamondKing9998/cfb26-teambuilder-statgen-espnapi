@@ -4,54 +4,55 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 
-// --- Interfaces based on API-Sports American Football v1 documentation ---
-interface ApiSportsPlayer {
+// --- Interfaces for CollegeFootballData.com API ---
+
+interface CfbdTeam {
     id: number;
-    name: string; // Full name as returned by API
-    firstname: string;
-    lastname: string;
-    birth: {
-        date: string; // e.g., "1999-01-15"
-        country: string;
-    };
-    height: {
-        feet: number | null;
-        inches: number | null;
-    };
-    weight: {
-        pounds: number | null;
-    };
-    college: string; // This API explicitly has a college field for players
-    draft: {
-        round: number | null;
-        pick: number | null;
-        team: ApiSportsTeam | null;
-    };
-    position: {
-        name: string; // e.g., "Quarterback"
-        abbr: string; // e.g., "QB"
-    };
-    team: {
-        id: number;
-        name: string; // e.g., "LSU Tigers"
-        logo: string;
-    };
-    jersey?: number;
-    season: number; // The season this player data corresponds to (important for filtering)
+    school: string; // Team name (e.g., "LSU")
+    mascot: string;
+    abbreviation: string;
+    alt_name1: string | null;
+    alt_name2: string | null;
+    alt_name3: string | null;
+    classification: 'FBS' | 'FCS' | 'II' | 'III' | null; // e.g., "FBS", "FCS"
+    conference: string;
+    division: string;
+    color: string | null;
+    alt_color: string | null;
+    logos: string[] | null; // Array of logo URLs
+    twitter: string | null;
+    venue_id: number;
+    year: number; // The season this team data is for
 }
 
-interface ApiSportsTeam {
+interface CfbdPlayer {
     id: number;
-    name: string; // e.g., "LSU Tigers"
-    logo: string;
-    country: {
-        id: number;
-        name: string;
-        code: string;
-    };
-    // ... other team details
+    first_name: string;
+    last_name: string;
+    home_city: string | null;
+    home_state: string | null;
+    home_country: string | null;
+    home_latitude: number | null;
+    home_longitude: number | null;
+    height: number | null; // inches
+    weight: number | null; // pounds
+    jersey: number | null;
+    position: string | null; // e.g., "QB", "RB"
+    squad_id: number; // Team ID for the player's team roster
+    team: string; // Team name (e.g., "LSU") - this is the school name from CfbdTeam.school
+    year: number; // The season this player data is for
+    current_p5_school: boolean | null; // Indicates if currently at Power 5 school
+    transfer_status: string | null; // e.g., "active", "out"
+    usage: {
+        overall: number; // Player's overall usage
+        quarterback: number;
+        offense: number;
+        defense: number;
+        specialTeams: number;
+    } | null;
 }
 
+// --- Component Props Interfaces ---
 interface FilterSidebarProps {
     onApplyFilters: (filters: { college: string; year: string; position: string; playerName: string }) => void;
     colleges: { name: string; id: number }[];
@@ -66,11 +67,11 @@ interface FilterSidebarProps {
 }
 
 interface PlayerCardProps {
-    player: ApiSportsPlayer;
+    player: CfbdPlayer;
 }
 
 interface PlayerResultsProps {
-    players: ApiSportsPlayer[];
+    players: CfbdPlayer[];
     isLoadingPlayers: boolean;
     error: string | null;
 }
@@ -79,9 +80,12 @@ interface PlayerResultsProps {
 const PlayerCard: React.FC<PlayerCardProps> = ({ player }) => {
     return (
         <div className="player-card">
-            <h4>{player.name}</h4>
-            <p>{player.college || 'N/A College'} | {player.position?.abbr || 'N/A Pos'} | {player.season} Season</p>
+            <h4>{`${player.first_name || ''} ${player.last_name || ''}`.trim() || 'N/A Name'}</h4>
+            <p>{player.team || 'N/A Team'} | {player.position || 'N/A Pos'} | {player.year || 'N/A Season'}</p>
             {player.jersey && <p>Jersey: #{player.jersey}</p>}
+            {player.height && player.weight && (
+                <p>Height: {Math.floor(player.height / 12)}'{player.height % 12}" | Weight: {player.weight} lbs</p>
+            )}
         </div>
     );
 };
@@ -192,9 +196,9 @@ const FilterSidebar: React.FC<FilterSidebarProps> = ({
                             <h3>College Team</h3>
                             <select value={collegeValue} onChange={(e) => setCollegeValue(e.target.value)}>
                                 <option value="">All Colleges</option>
-                                {/* Sort colleges alphabetically by name for dropdown */}
-                                {colleges.sort((a, b) => a.name.localeCompare(b.name)).map((college) => (
-                                    <option key={college.id} value={college.name}>{college.name}</option>
+                                {colleges.map((college) => (
+                                    // Use college.name as key since IDs might not be unique if fetched from different years
+                                    <option key={college.name} value={college.name}>{college.name}</option>
                                 ))}
                             </select>
                         </div>
@@ -230,6 +234,7 @@ const FilterSidebar: React.FC<FilterSidebarProps> = ({
     );
 };
 
+
 // --- Main App Component (now the default export for the page) ---
 const CollegeFootballApp: React.FC = () => {
     const [appliedFilters, setAppliedFilters] = useState({
@@ -239,7 +244,7 @@ const CollegeFootballApp: React.FC = () => {
         playerName: '',
     });
 
-    const [players, setPlayers] = useState<ApiSportsPlayer[]>([]);
+    const [players, setPlayers] = useState<CfbdPlayer[]>([]);
     const [isLoadingPlayers, setIsLoadingPlayers] = useState(false);
     const [playerError, setPlayerError] = useState<string | null>(null);
 
@@ -251,120 +256,90 @@ const CollegeFootballApp: React.FC = () => {
     // Store the mapping of college name to ID for API requests
     const [collegeNameToIdMap, setCollegeNameToIdMap] = useState<Map<string, number>>(new Map());
 
-    // --- API-Sports American Football v1 KEY & HOST ---
-    // YOUR API KEY IS EMBEDDED HERE
-    const API_SPORTS_API_KEY = 'f307e2d6f7c992f91cdcf3abb81d3fad';
-    const API_SPORTS_API_HOST = 'v1.american-football.api-sports.io';
-    const API_SPORTS_BASE_URL = `https://${API_SPORTS_API_HOST}`;
-
-    const NCAAF_LEAGUE_ID = 1;
+    // --- CollegeFootballData.com API KEY & HOST ---
+    const CFBD_API_KEY = '92cDQTO7wJWHaqwFq9FBkJYIG/yWei+B5QihvcPX81fn332tSeamNOzyVT0FGUT9';
+    const CFBD_BASE_URL = 'https://api.collegefootballdata.com';
 
     // 1. Fetch data for filter dropdowns (runs once on mount)
     useEffect(() => {
         const fetchFilterOptions = async () => {
             setIsLoadingFilters(true);
-            try {
-                // --- Generate Years 1998-2025 ---
-                const startYear = 1998;
-                const currentYear = new Date().getFullYear(); // This will be 2025
-                const endYear = 2025; // User requested up to 2025
+            setPlayerError(null); // Clear any previous player errors
 
+            try {
+                // --- Generate Years 1940-2025 ---
+                const startYear = 1940;
+                const endYear = 2025;
                 const generatedYears: string[] = [];
                 for (let year = endYear; year >= startYear; year--) {
                     generatedYears.push(year.toString());
                 }
                 setApiYears(generatedYears);
 
-                // --- Fetch Teams (Colleges) ---
-                // We'll fetch teams for the most recent year (2025) initially.
-                // NOTE: If the API does not have team data for 2025 yet, this dropdown will be empty.
-                // If it remains empty, try hardcoding `initialSeasonForTeams` to '2024' or '2023'.
-                const initialSeasonForTeams = generatedYears.includes(currentYear.toString())
-                    ? currentYear.toString()
-                    : generatedYears[0] || '2024'; // Fallback if 2025 isn't in generated list for some reason, or list is empty
+                // --- Fetch Teams from CFBD API (FBS & FCS) ---
+                // We'll fetch teams for the latest year to get the most current list of schools.
+                // CFBD /teams endpoint can take a 'year' parameter.
+                const currentYearForTeams = endYear; // Use 2025 for fetching teams
 
-                console.log(`Fetching initial teams for season: ${initialSeasonForTeams}`); // Debugging
-                const teamsResponse = await fetch(`${API_SPORTS_BASE_URL}/teams?league=${NCAAF_LEAGUE_ID}&season=${initialSeasonForTeams}`, {
+                console.log(`Fetching teams for year: ${currentYearForTeams}`);
+                const teamsResponse = await fetch(`${CFBD_BASE_URL}/teams?year=${currentYearForTeams}`, {
                     headers: {
-                        'x-rapidapi-key': API_SPORTS_API_KEY,
-                        'x-rapidapi-host': API_SPORTS_API_HOST,
+                        'Authorization': `Bearer ${CFBD_API_KEY}`,
                     },
                 });
+
                 if (!teamsResponse.ok) {
                     const errorBody = await teamsResponse.text();
-                    console.error('API Error fetching teams:', errorBody);
-                    // Instead of throwing, just log and set empty. User can still select other years.
-                    setApiColleges([]);
-                    setCollegeNameToIdMap(new Map());
-                    // Optionally set a filter error if this is critical
-                    // setPlayerError(`Failed to load college teams for ${initialSeasonForTeams}: ${teamsResponse.statusText}`);
-                } else {
-                    const teamsData: { response: ApiSportsTeam[] } = await teamsResponse.json();
-                    const collegesList = (teamsData.response || [])
-                        .map(team => ({ name: team.name, id: team.id }))
-                        .sort((a, b) => a.name.localeCompare(b.name));
-                    setApiColleges(collegesList);
-
-                    const nameToIdMap = new Map<string, number>();
-                    collegesList.forEach(c => nameToIdMap.set(c.name, c.id));
-                    setCollegeNameToIdMap(nameToIdMap);
+                    console.error(`CFBD API Error fetching teams (${currentYearForTeams}):`, errorBody);
+                    throw new Error(`Failed to load college teams from CFBD API for ${currentYearForTeams}.`);
                 }
 
-                // --- Fetch Positions ---
-                // Try to fetch positions from a recent season's players, fall back if necessary.
-                const positionsList: string[] = [];
-                try {
-                    const playersForPositionsResponse = await fetch(`${API_SPORTS_BASE_URL}/players?league=${NCAAF_LEAGUE_ID}&season=${initialSeasonForTeams}&limit=100`, {
-                        headers: {
-                            'x-rapidapi-key': API_SPORTS_API_KEY,
-                            'x-rapidapi-host': API_SPORTS_API_HOST,
-                        },
-                    });
-                     if (playersForPositionsResponse.ok) {
-                        const playersForPositionsData: { response: ApiSportsPlayer[] } = await playersForPositionsResponse.json();
-                        const uniquePositions = new Set<string>();
-                        (playersForPositionsData.response || []).forEach(p => {
-                            if (p.position?.abbr) {
-                                uniquePositions.add(p.position.abbr);
-                            }
-                        });
-                        positionsList.push(...Array.from(uniquePositions).sort());
-                    } else {
-                        console.warn(`Could not fetch players for positions for ${initialSeasonForTeams}: ${playersForPositionsResponse.statusText}. Using common positions list.`);
-                    }
-                } catch (posError) {
-                    console.warn("Error fetching positions from players API, using common list:", posError);
-                }
+                const teamsData: CfbdTeam[] = await teamsResponse.json();
 
-                if (positionsList.length === 0) {
-                     const commonPositions = [
-                        'QB', 'RB', 'WR', 'TE', 'C', 'G', 'T', 'DE', 'DT', 'LB', 'CB', 'S',
-                        'K', 'P', 'LS', 'ATH', 'DL', 'DB', 'FB', 'OT', 'OG', 'C', 'DT', 'DE',
-                        'OLB', 'ILB', 'CB', 'SS', 'FS'
-                    ];
-                    setApiPositions(Array.from(new Set(commonPositions)).sort());
-                } else {
-                    setApiPositions(positionsList);
-                }
+                const filteredTeams = teamsData.filter(
+                    (team) => team.classification === 'FBS' || team.classification === 'FCS'
+                ).sort((a, b) => a.school.localeCompare(b.school)); // Sort alphabetically
 
+                const nameToIdMap = new Map<string, number>();
+                const collegesForDropdown = filteredTeams.map(team => {
+                    nameToIdMap.set(team.school, team.id);
+                    return { name: team.school, id: team.id };
+                });
+
+                setApiColleges(collegesForDropdown);
+                setCollegeNameToIdMap(nameToIdMap);
+                console.log("CFBD College to ID Map built:", nameToIdMap);
+
+                // --- Fetch Positions from a known list or infer from players ---
+                // CFBD API doesn't have a direct /positions endpoint for generic positions.
+                // We'll use a comprehensive list derived from common CFB positions.
+                const commonPositions = [
+                    'QB', 'RB', 'FB', 'WR', 'TE', 'C', 'OG', 'OT', 'OL', // Offense
+                    'DE', 'DT', 'DL', 'LB', 'ILB', 'OLB', // Defense
+                    'CB', 'S', 'DB', 'FS', 'SS', // Defensive Backs
+                    'K', 'P', 'LS', 'H', 'PR', 'KR', // Special Teams
+                    'ATH', 'PK' // Athlete, Placekicker (sometimes distinct from K)
+                ].sort(); // Keep them sorted
+
+                setApiPositions(commonPositions);
 
             } catch (error: any) {
                 console.error('Error in fetchFilterOptions:', error);
-                setPlayerError(`Failed to load initial filter options: ${error.message || 'Unknown error'}`);
+                setPlayerError(`Failed to load initial filter options: ${error.message || 'Unknown error'}. Please check your API key.`);
             } finally {
                 setIsLoadingFilters(false);
             }
         };
 
         fetchFilterOptions();
-    }, [API_SPORTS_API_KEY, API_SPORTS_API_HOST]); // Dependencies for useEffect
+    }, [CFBD_API_KEY, CFBD_BASE_URL]);
 
 
     // 2. Fetch players based on applied filters (runs when appliedFilters state changes)
     const fetchPlayers = useCallback(async () => {
         setIsLoadingPlayers(true);
         setPlayerError(null);
-        setPlayers([]); // Clear previous results
+        setPlayers([]);
 
         const isAnyFilterApplied = Object.values(appliedFilters).some(value => value !== '');
         if (!isAnyFilterApplied) {
@@ -374,60 +349,49 @@ const CollegeFootballApp: React.FC = () => {
 
         try {
             const queryParams = new URLSearchParams();
-            queryParams.append('league', NCAAF_LEAGUE_ID.toString());
 
-            // Always provide a season when fetching players.
-            // If user hasn't selected one, use the latest from our generated list.
-            const seasonToQuery = appliedFilters.year || (apiYears.length > 0 ? apiYears[0] : new Date().getFullYear().toString());
-            queryParams.append('season', seasonToQuery);
+            // Season is required for CFBD /players endpoint
+            const seasonToQuery = appliedFilters.year || (apiYears.length > 0 ? apiYears[0] : '2024'); // Default to latest year
+            queryParams.append('year', seasonToQuery);
 
             if (appliedFilters.college) {
                 const teamId = collegeNameToIdMap.get(appliedFilters.college);
                 if (teamId) {
-                    queryParams.append('team', teamId.toString());
+                    queryParams.append('teamId', teamId.toString()); // CFBD uses teamId
                 } else {
-                    setPlayerError(`Selected college "${appliedFilters.college}" not found in current season's data. Try another year or college.`);
+                    setPlayerError(`Selected college "${appliedFilters.college}" not found in CFBD team data for year ${seasonToQuery}. Team filter may not work correctly.`);
                     setIsLoadingPlayers(false);
                     return;
                 }
             }
+
             if (appliedFilters.position) {
                 queryParams.append('position', appliedFilters.position);
             }
+
+            // CFBD's /players endpoint has a 'search' parameter for player names.
             if (appliedFilters.playerName) {
                 queryParams.append('search', appliedFilters.playerName);
             }
 
-            const url = `${API_SPORTS_BASE_URL}/players?${queryParams.toString()}`;
-            console.log("Fetching players from URL:", url); // <--- IMPORTANT FOR DEBUGGING
+            const url = `${CFBD_BASE_URL}/players?${queryParams.toString()}`;
+            console.log("Fetching players from CFBD URL:", url);
 
             const response = await fetch(url, {
                 headers: {
-                    'x-rapidapi-key': API_SPORTS_API_KEY,
-                    'x-rapidapi-host': API_SPORTS_API_HOST,
+                    'Authorization': `Bearer ${CFBD_API_KEY}`,
                 },
             });
 
             if (!response.ok) {
                 const errorBody = await response.text();
-                throw new Error(`API Error: ${response.status} ${response.statusText}. Details: ${errorBody}`);
+                console.error(`CFBD API Error fetching players: ${response.status} ${response.statusText}. Details:`, errorBody);
+                throw new Error(`CFBD API Error: ${response.status} ${response.statusText}. Details: ${errorBody}`);
             }
 
-            const data: { response: ApiSportsPlayer[] } = await response.json();
+            const data: CfbdPlayer[] = await response.json(); // CFBD /players returns an array directly
 
-            let finalPlayers = data.response || [];
-
-            // Client-side filtering as a fallback/refinement
-            if (appliedFilters.playerName) {
-                 const searchLower = appliedFilters.playerName.toLowerCase();
-                 finalPlayers = finalPlayers.filter(p =>
-                     p.name.toLowerCase().includes(searchLower) ||
-                     (p.firstname && p.firstname.toLowerCase().includes(searchLower)) ||
-                     (p.lastname && p.lastname.toLowerCase().includes(searchLower))
-                 );
-            }
-
-            setPlayers(finalPlayers);
+            setPlayers(data || []);
 
         } catch (error: any) {
             console.error('Error fetching players:', error);
@@ -436,7 +400,7 @@ const CollegeFootballApp: React.FC = () => {
         } finally {
             setIsLoadingPlayers(false);
         }
-    }, [appliedFilters, API_SPORTS_API_KEY, API_SPORTS_API_HOST, collegeNameToIdMap, apiYears]);
+    }, [appliedFilters, CFBD_API_KEY, CFBD_BASE_URL, collegeNameToIdMap, apiYears]);
 
     useEffect(() => {
         fetchPlayers();
@@ -455,7 +419,7 @@ const CollegeFootballApp: React.FC = () => {
     return (
         <div className="App">
             <header>
-                <h1>College Football Player Search</h1>
+                <h1>College Football Player Search (CFBD API)</h1>
                 <p>Find college players by team, season, position, or name.</p>
             </header>
 
