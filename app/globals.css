@@ -1,6 +1,6 @@
 /*
  * Styles for the vibrant, filter-only layout
- * Save this as a .css file (e.g., globals.css or App.css)
+ * (No changes from previous CSS, it's already designed for the filters only)
  */
 
 :root {
@@ -32,7 +32,7 @@ header {
     text-align: center;
     font-size: 1.8em;
     box-shadow: 0 4px 10px rgba(0,0,0,0.2);
-    margin-bottom: 20px; /* Space below header */
+    margin-bottom: 20px;
 }
 
 header h1 {
@@ -50,27 +50,26 @@ header p {
 
 .main-container {
     display: flex;
-    justify-content: center; /* Center the filter sidebar */
-    align-items: flex-start; /* Align to the top */
+    justify-content: center;
+    align-items: flex-start;
     flex-grow: 1;
     padding: 20px;
-    /* Removed gap as there's only one main column now */
 }
 
 .filter-sidebar {
-    flex: 0 0 350px; /* Wider for better visual impact */
+    flex: 0 0 350px;
     background-color: var(--color-card-bg);
-    border-radius: 12px; /* More rounded corners */
-    box-shadow: 0 6px 15px rgba(0,0,0,0.15); /* More prominent shadow */
-    padding: 30px; /* More internal padding */
+    border-radius: 12px;
+    box-shadow: 0 6px 15px rgba(0,0,0,0.15);
+    padding: 30px;
     display: flex;
     flex-direction: column;
-    gap: 25px; /* Increased space between filter groups */
-    border: 1px solid rgba(0,0,0,0.05); /* Subtle border */
+    gap: 25px;
+    border: 1px solid rgba(0,0,0,0.05);
 }
 
 .filter-group {
-    border-bottom: 2px solid var(--color-background); /* Thicker separator */
+    border-bottom: 2px solid var(--color-background);
     padding-bottom: 20px;
 }
 
@@ -82,7 +81,7 @@ header p {
 .filter-group h3 {
     margin-top: 0;
     margin-bottom: 12px;
-    color: var(--color-primary); /* Use primary color for headings */
+    color: var(--color-primary);
     font-size: 1.25em;
     font-weight: 600;
     text-transform: uppercase;
@@ -91,13 +90,13 @@ header p {
 
 .filter-group select {
     width: 100%;
-    padding: 12px; /* Larger padding for better touch targets */
-    border: 2px solid var(--color-accent-purple); /* Border with accent color */
-    border-radius: 8px; /* More rounded input fields */
-    background-color: #f8fcfd; /* Very light background for inputs */
+    padding: 12px;
+    border: 2px solid var(--color-accent-purple);
+    border-radius: 8px;
+    background-color: #f8fcfd;
     font-size: 1.05em;
     color: var(--color-text-dark);
-    appearance: none; /* Remove default arrow */
+    appearance: none;
     -webkit-appearance: none;
     -moz-appearance: none;
     background-image: url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%232c3e50%22%20d%3D%22M287%2069.4L146.2%20209.2%205.4%2069.4c-6.8-6.8-17.7-6.8-24.5%200s-6.8%2017.7%200%2024.5l141.6%20141.6c6.8%206.8%2017.7%206.8%2024.5%200L287%2093.9c6.9-6.8%206.9-17.7.1-24.5z%22%2F%3E%3C%2Fsvg%3E');
@@ -110,32 +109,55 @@ header p {
 
 .filter-group select:focus {
     outline: none;
-    border-color: var(--color-secondary); /* Highlight on focus */
-    box-shadow: 0 0 0 3px rgba(255, 87, 34, 0.3); /* Soft glow */
+    border-color: var(--color-secondary);
+    box-shadow: 0 0 0 3px rgba(255, 87, 34, 0.3);
+}
+
+.loading-spinner {
+    text-align: center;
+    padding: 20px;
+    font-style: italic;
+    color: #666;
+}
+
+.reset-button {
+    background-color: #6c757d; /* A muted gray for reset */
+    color: white;
+    padding: 12px 20px;
+    border: none;
+    border-radius: 8px;
+    font-size: 1.05em;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+    margin-top: 10px; /* Space above the button */
+}
+
+.reset-button:hover {
+    background-color: #5a6268;
 }
 
 
 footer {
-    background-color: var(--color-text-dark); /* Dark footer */
+    background-color: var(--color-text-dark);
     color: var(--color-text-light);
     text-align: center;
     padding: 15px 20px;
-    margin-top: 30px; /* More space above footer */
+    margin-top: 30px;
     box-shadow: 0 -2px 5px rgba(0,0,0,0.1);
 }
 
-/* Mobile Responsiveness (adjust flex direction and width) */
+/* Mobile Responsiveness */
 @media (max-width: 768px) {
     .main-container {
         flex-direction: column;
-        align-items: center; /* Center filter sidebar horizontally */
+        align-items: center;
         padding: 15px;
     }
 
     .filter-sidebar {
         flex: 0 0 auto;
-        width: 100%; /* Take full width on small screens */
-        max-width: 350px; /* But don't stretch too wide on larger mobiles */
+        width: 100%;
+        max-width: 350px;
         margin-bottom: 20px;
         padding: 25px 20px;
     }
