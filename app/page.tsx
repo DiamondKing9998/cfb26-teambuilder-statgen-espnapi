@@ -1,146 +1,177 @@
-/*
- * Styles for the vibrant, filter-only layout
- * Save this as a .css file (e.g., globals.css or App.css)
- */
+"use client"; // Essential for using useState and other client-side hooks
 
-:root {
-    --color-primary: #007bff; /* A bright blue */
-    --color-secondary: #ff5722; /* Vibrant orange */
-    --color-background: #e0f2f7; /* Light blue tint */
-    --color-card-bg: #ffffff;
-    --color-text-dark: #2c3e50; /* Darker text for contrast */
-    --color-text-light: #ecf0f1;
-    --color-accent-green: #28a745; /* Success green */
-    --color-accent-purple: #6f42c1; /* Deep purple */
+import React, { useState, useEffect, useMemo } from 'react';
+
+// --- Interfaces (remain the same as they define data structure) ---
+interface Player {
+    name: string;
+    college: string;
+    position: string;
+    year: string;
+    ovr: number;
 }
 
-body {
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    margin: 0;
-    padding: 0;
-    background-color: var(--color-background);
-    display: flex;
-    flex-direction: column;
-    min-height: 100vh;
-    color: var(--color-text-dark);
+// PlayerCardProps and PlayerResultsProps are now conceptually unused in this layout,
+// but kept for reference if you ever re-add the display section.
+interface PlayerCardProps {
+    player: Player;
 }
 
-header {
-    background-image: linear-gradient(to right, var(--color-primary), var(--color-accent-purple));
-    color: var(--color-text-light);
-    padding: 25px 20px;
-    text-align: center;
-    font-size: 1.8em;
-    box-shadow: 0 4px 10px rgba(0,0,0,0.2);
-    margin-bottom: 20px; /* Space below header */
+interface FilterSidebarProps {
+    onFilterChange: (filters: { college: string; year: string; position: string }) => void;
+    colleges: string[];
+    years: string[];
+    positions: string[];
+    // Optionally, pass current selected values if needed for external reset/display
+    currentCollege: string;
+    currentYear: string;
+    currentPosition: string;
 }
 
-header h1 {
-    margin: 0;
-    font-size: 2.2em;
-    letter-spacing: 1px;
-    text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
-}
+// Removed PlayerResultsProps as the section is gone
 
-header p {
-    margin: 5px 0 0;
-    font-size: 0.9em;
-    opacity: 0.9;
-}
+// --- PlayerCard Component (defined but not used in this layout) ---
+// Kept for conceptual understanding if you wanted to bring back player display later
+const PlayerCard: React.FC<PlayerCardProps> = ({ player }) => {
+    return (
+        <div className="player-card">
+            <h4>{player.name}</h4>
+            <p>{player.college} | {player.position} | {player.year} Season</p>
+            <p>OVR: {player.ovr}</p>
+        </div>
+    );
+};
 
-.main-container {
-    display: flex;
-    justify-content: center; /* Center the filter sidebar */
-    align-items: flex-start; /* Align to the top */
-    flex-grow: 1;
-    padding: 20px;
-    /* Removed gap as there's only one main column now */
-}
+// --- FilterSidebar Component ---
+const FilterSidebar: React.FC<FilterSidebarProps> = ({
+    onFilterChange,
+    colleges,
+    years,
+    positions,
+    currentCollege,
+    currentYear,
+    currentPosition
+}) => {
+    // State managed by parent, values passed down. Local state here is for select input values.
+    const [collegeValue, setCollegeValue] = useState<string>(currentCollege);
+    const [yearValue, setYearValue] = useState<string>(currentYear);
+    const [positionValue, setPositionValue] = useState<string>(currentPosition);
 
-.filter-sidebar {
-    flex: 0 0 350px; /* Wider for better visual impact */
-    background-color: var(--color-card-bg);
-    border-radius: 12px; /* More rounded corners */
-    box-shadow: 0 6px 15px rgba(0,0,0,0.15); /* More prominent shadow */
-    padding: 30px; /* More internal padding */
-    display: flex;
-    flex-direction: column;
-    gap: 25px; /* Increased space between filter groups */
-    border: 1px solid rgba(0,0,0,0.05); /* Subtle border */
-}
+    // Update parent's filters whenever a local selection changes
+    useEffect(() => {
+        onFilterChange({
+            college: collegeValue,
+            year: yearValue,
+            position: positionValue,
+        });
+    }, [collegeValue, yearValue, positionValue, onFilterChange]);
 
-.filter-group {
-    border-bottom: 2px solid var(--color-background); /* Thicker separator */
-    padding-bottom: 20px;
-}
+    return (
+        <aside className="filter-sidebar">
+            <h2>Filter Players</h2> {/* More action-oriented title */}
 
-.filter-group:last-child {
-    border-bottom: none;
-    padding-bottom: 0;
-}
+            <div className="filter-group">
+                <h3>College</h3>
+                <select value={collegeValue} onChange={(e) => setCollegeValue(e.target.value)}>
+                    <option value="">All Colleges</option>
+                    {colleges.map((college) => (
+                        <option key={college} value={college}>{college}</option>
+                    ))}
+                </select>
+            </div>
 
-.filter-group h3 {
-    margin-top: 0;
-    margin-bottom: 12px;
-    color: var(--color-primary); /* Use primary color for headings */
-    font-size: 1.25em;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-}
+            <div className="filter-group">
+                <h3>Year</h3>
+                <select value={yearValue} onChange={(e) => setYearValue(e.target.value)}>
+                    <option value="">All Years</option>
+                    {years.map((year) => (
+                        <option key={year} value={year}>{year}</option>
+                    ))}
+                </select>
+            </div>
 
-.filter-group select {
-    width: 100%;
-    padding: 12px; /* Larger padding for better touch targets */
-    border: 2px solid var(--color-accent-purple); /* Border with accent color */
-    border-radius: 8px; /* More rounded input fields */
-    background-color: #f8fcfd; /* Very light background for inputs */
-    font-size: 1.05em;
-    color: var(--color-text-dark);
-    appearance: none; /* Remove default arrow */
-    -webkit-appearance: none;
-    -moz-appearance: none;
-    background-image: url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%232c3e50%22%20d%3D%22M287%2069.4L146.2%20209.2%205.4%2069.4c-6.8-6.8-17.7-6.8-24.5%200s-6.8%2017.7%200%2024.5l141.6%20141.6c6.8%206.8%2017.7%206.8%2024.5%200L287%2093.9c6.9-6.8%206.9-17.7.1-24.5z%22%2F%3E%3C%2Fsvg%3E');
-    background-repeat: no-repeat;
-    background-position: right 15px center;
-    background-size: 1em;
-    cursor: pointer;
-    transition: all 0.3s ease;
-}
+            <div className="filter-group">
+                <h3>Position</h3>
+                <select value={positionValue} onChange={(e) => setPositionValue(e.target.value)}>
+                    <option value="">All Positions</option>
+                    {positions.map((pos) => (
+                        <option key={pos} value={pos}>{pos}</option>
+                    ))}
+                </select>
+            </div>
+        </aside>
+    );
+};
 
-.filter-group select:focus {
-    outline: none;
-    border-color: var(--color-secondary); /* Highlight on focus */
-    box-shadow: 0 0 0 3px rgba(255, 87, 34, 0.3); /* Soft glow */
-}
+// --- Main App Component ---
+const App: React.FC = () => {
+    // Dummy data (can be moved or fetched)
+    const allPlayers: Player[] = [
+        { name: 'Joe Burrow', college: 'LSU', position: 'QB', year: '2019', ovr: 99 },
+        { name: 'Jabrill Peppers', college: 'Michigan', position: 'ATH', year: '2016', ovr: 97 },
+        { name: 'Player Name 3', college: 'Ohio State', position: 'RB', year: '2018', ovr: 85 },
+        { name: 'Player Name 4', college: 'LSU', position: 'WR', year: '2019', ovr: 90 },
+        { name: 'Player Name 5', college: 'Michigan', position: 'DL', year: '2017', ovr: 92 },
+        { name: 'Player Name 6', college: 'Texas A&M', position: 'LB', year: '2019', ovr: 88 },
+        { name: 'Player Name 7', college: 'USC', position: 'CB', year: '2017', ovr: 86 },
+        { name: 'Player Name 8', college: 'Clemson', position: 'DE', year: '2018', ovr: 91 },
+    ];
 
+    // State to hold current filter selections
+    const [filters, setFilters] = useState({
+        college: '',
+        year: '',
+        position: '',
+    });
 
-footer {
-    background-color: var(--color-text-dark); /* Dark footer */
-    color: var(--color-text-light);
-    text-align: center;
-    padding: 15px 20px;
-    margin-top: 30px; /* More space above footer */
-    box-shadow: 0 -2px 5px rgba(0,0,0,0.1);
-}
+    // Derive available filter options from allPlayers data
+    const availableColleges = useMemo(() => {
+        const colleges = new Set(allPlayers.map(p => p.college));
+        return Array.from(colleges).sort();
+    }, [allPlayers]);
 
-/* Mobile Responsiveness (adjust flex direction and width) */
-@media (max-width: 768px) {
-    .main-container {
-        flex-direction: column;
-        align-items: center; /* Center filter sidebar horizontally */
-        padding: 15px;
-    }
+    const availableYears = useMemo(() => {
+        const years = new Set(allPlayers.map(p => p.year));
+        return Array.from(years).sort((a, b) => parseInt(b) - parseInt(a)); // Sort descending
+    }, [allPlayers]);
 
-    .filter-sidebar {
-        flex: 0 0 auto;
-        width: 100%; /* Take full width on small screens */
-        max-width: 350px; /* But don't stretch too wide on larger mobiles */
-        margin-bottom: 20px;
-        padding: 25px 20px;
-    }
+    const availablePositions = useMemo(() => {
+        const positions = new Set(allPlayers.map(p => p.position));
+        return Array.from(positions).sort();
+    }, [allPlayers]);
 
-    header h1 {
-        font-size: 1.8em;
-    }
-}
+    return (
+        <div className="App">
+            <header>
+                <h1>CFB Player Filter</h1>
+                <p>Select criteria to explore player attributes</p>
+            </header>
+
+            <div className="main-container">
+                <FilterSidebar
+                    onFilterChange={setFilters}
+                    colleges={availableColleges}
+                    years={availableYears}
+                    positions={availablePositions}
+                    currentCollege={filters.college}
+                    currentYear={filters.year}
+                    currentPosition={filters.position}
+                />
+                {/* The Player Results section is explicitly removed here */}
+                {/* If you wanted to see the applied filters, you could add: */}
+                {/* <div style={{ padding: '20px', backgroundColor: '#fff', borderRadius: '8px', boxShadow: '0 2px 5px rgba(0,0,0,0.1)', flexGrow: 1 }}>
+                    <h2>Applied Filters:</h2>
+                    <p>College: {filters.college || 'N/A'}</p>
+                    <p>Year: {filters.year || 'N/A'}</p>
+                    <p>Position: {filters.position || 'N/A'}</p>
+                </div> */}
+            </div>
+
+            <footer>
+                <p>&copy; 2025 CFB Player Database POC</p>
+            </footer>
+        </div>
+    );
+};
+
+export default App;
