@@ -1,8 +1,6 @@
-/*
- * Styles for the updated layout using API-Sports American Football v1
- * (No functional changes from previous CSS, as the layout remains consistent)
- */
+/* src/app/globals.css */
 
+/* Global color variables (no change) */
 :root {
     --color-primary: #007bff; /* A bright blue */
     --color-secondary: #ff5722; /* Vibrant orange */
@@ -16,8 +14,10 @@
     --color-error: #dc3545; /* For error messages */
 }
 
+/* Base styles for the entire body */
 body {
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    /* Use Inter for general body text */
+    font-family: var(--font-inter), sans-serif;
     margin: 0;
     padding: 0;
     background-color: var(--color-background);
@@ -25,6 +25,24 @@ body {
     flex-direction: column;
     min-height: 100vh;
     color: var(--color-text-dark);
+    line-height: 1.6;
+    font-size: 16px;
+}
+
+/* --- Apply Bebas Neue to headings for a "sports" feel --- */
+h1, h2, h3, h4, h5, h6,
+header h1,
+.filter-sidebar h2 {
+    font-family: var(--font-bebas-neue), sans-serif;
+    letter-spacing: 0.05em; /* Add a little spacing for Bebas Neue */
+    text-transform: uppercase; /* Common for sports fonts */
+}
+
+/* --- App Structure and Layout (rest of your CSS, largely unchanged) --- */
+.App {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
 }
 
 header {
@@ -40,8 +58,8 @@ header {
 header h1 {
     margin: 0;
     font-size: 2.2em;
-    letter-spacing: 1px;
-    text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
+    /* letter-spacing and text-shadow handled by generic h1 rule */
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.3); /* Keep specific shadow */
 }
 
 header p {
@@ -92,8 +110,8 @@ header p {
     color: var(--color-primary);
     font-size: 1.25em;
     font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
+    /* text-transform handled by generic h3 rule */
+    /* letter-spacing handled by generic h3 rule */
 }
 
 .filter-group select,

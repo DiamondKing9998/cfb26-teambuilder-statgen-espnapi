@@ -1,6 +1,9 @@
-"use client"; // Essential for using useState and other client-side hooks
+// src/app/page.tsx
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+"use client"; // Essential for using useState, useEffect, and other client-side hooks
+
+import React, { useState, useEffect, useCallback } from 'react';
+// Note: No need to import specific fonts here, they are handled in layout.tsx
 
 // --- Interfaces based on API-Sports American Football v1 documentation ---
 // Note: API-Sports uses a `response` array wrapper in their JSON.
@@ -237,8 +240,8 @@ const FilterSidebar: React.FC<FilterSidebarProps> = ({
     );
 };
 
-// --- Main App Component ---
-const App: React.FC = () => {
+// --- Main App Component (now the default export for the page) ---
+const CollegeFootballApp: React.FC = () => {
     const [appliedFilters, setAppliedFilters] = useState({
         college: '',
         year: '',
@@ -492,4 +495,4 @@ const App: React.FC = () => {
     );
 };
 
-export default App;
+export default CollegeFootballApp; // Export the main component as default
