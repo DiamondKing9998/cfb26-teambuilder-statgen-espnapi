@@ -1,4 +1,7 @@
-import React, { useState } from 'react'; // Assuming React environment for JSX
+// At the very top of the file, before any imports
+"use client";
+
+import React, { useState } from 'react';
 
 // Define interfaces for props and data if this were a more complete app
 interface Player {
@@ -15,7 +18,6 @@ interface PlayerCardProps {
 
 interface FilterSidebarProps {
     onFilterChange: (filters: { college: string; year: string; position: string }) => void;
-    // Potentially pass available filter options as props from parent
     colleges: string[];
     years: string[];
     positions: string[];
@@ -37,22 +39,24 @@ const PlayerCard: React.FC<PlayerCardProps> = ({ player }) => {
 };
 
 // --- FilterSidebar Component ---
+// This component also uses useState internally, but because its parent (App) is
+// marked "use client", it will also be a client component.
+// You could also explicitly add "use client" here, but it's often more efficient
+// to mark higher-level components as client boundaries and let children inherit.
 const FilterSidebar: React.FC<FilterSidebarProps> = ({ onFilterChange, colleges, years, positions }) => {
     const [selectedCollege, setSelectedCollege] = useState<string>('');
     const [selectedYear, setSelectedYear] = useState<string>('');
     const [selectedPosition, setSelectedPosition] = useState<string>('');
 
-    // This would ideally trigger a parent function to apply filters
-    const handleFilterChange = () => {
+    // This effect ensures filters are applied when selection changes
+    React.useEffect(() => {
         onFilterChange({
             college: selectedCollege,
             year: selectedYear,
             position: selectedPosition,
         });
-    };
+    }, [selectedCollege, selectedYear, selectedPosition, onFilterChange]);
 
-    // In a real app, you'd call handleFilterChange on each select's onChange
-    // For this POC, we'll just show the structure
 
     return (
         <aside className="filter-sidebar">
@@ -168,9 +172,4 @@ const App: React.FC = () => {
     );
 };
 
-export default App; // This would be the main component exported
-
-// The CSS would remain largely the same as provided in the HTML example,
-// potentially imported as a .css module or styled-components/emotion.
-// For brevity, I'm not repeating the CSS here, but assume it exists in a
-// separate file or within a style tag as before.
+export default App;
