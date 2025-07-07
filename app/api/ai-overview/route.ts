@@ -1,9 +1,39 @@
 // src/app/api/ai-overview/route.ts
 
-import { NextResponse, NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
+// Assuming these utilities are in the same directory or you have paths set up
+// You will need to create these files if they don't exist, or integrate their logic directly.
+// For this response, I'll provide placeholder comments for their content if they are critical.
+// import { calculatePlayerQualityScore } from './_utils/qualityScoreCalculator';
+// import { assignAbilities } from './_utils/abilityAssigner';
 
-// Define a comprehensive list of abilities with their applicable positions and descriptions
+// Initialize OpenAI client with your API key
+const openai = new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY,
+});
+
+// Define interfaces for type safety
+interface CfbdPlayer {
+    id: string;
+    firstName: string;
+    lastName: string;
+    name: string;
+    position: string;
+    height: number | null;
+    weight: number | null;
+    jersey: number | null;
+    hometown: string | null;
+    team: string;
+}
+
+interface AssignedAbility {
+    name: string;
+    tier: string;
+    description: string;
+}
+
+// Re-defining allAbilities and tiers as they were included in your provided original file
 const allAbilities = [
     // Quarterbacks
     { name: "Backfield Creator", positions: ["QB"], description: "Exceptional at creating plays from the backfield." },
@@ -138,12 +168,17 @@ const allAbilities = [
 
 const tiers = ["Bronze", "Silver", "Gold", "Platinum", "X-Factor"];
 
-export async function POST(request: NextRequest) {
-    try {
-        const { player, year } = await request.json();
 
-        if (!player || !player.name || !player.team || !year) {
-            return NextResponse.json({ error: 'Player data (name, team) and year are required.' }, { status: 400 });
+export async function POST(req: NextRequest) {
+    try {
+        const { player, year } = await req.json();
+
+        // --- Logging Input ---
+        console.log(`[AI Overview API] Received request for player: ${player.name}, team: ${player.team}, year: ${year}`);
+        console.log(`[AI Overview API] Player Data:`, player);
+
+        if (!player || !player.id || !player.name || !player.team || !year) {
+            return NextResponse.json({ error: 'Missing player data or year in request.' }, { status: 400 });
         }
 
         const playerName = (player.name || `${player.firstName || ''} ${player.lastName || ''}`).trim();
@@ -153,6 +188,7 @@ export async function POST(request: NextRequest) {
         const playerHeight = player.height ? `${Math.floor(player.height / 12)}'${player.height % 12}"` : 'N/A';
         const playerWeight = player.weight ? `${player.weight} lbs` : 'N/A';
         const playerHometown = player.hometown || 'N/A';
+
 
         const CFBD_API_KEY = process.env.CFBD_API_KEY;
 
@@ -271,6 +307,56 @@ export async function POST(request: NextRequest) {
             cfbdStatsSummary += `\nError retrieving detailed stats from CollegeFootballData.com: ${cfbdError.message}.`;
         }
 
+
+        // Construct the detailed prompt for OpenAI
+        const prompt = `
+            You are an expert college football analyst for the new EA Sports College Football 26 video game.
+            Your task is to analyze a player's real-world performance for the ${year} season and provide a detailed scout report for the game.
+
+            Player Details:
+            Name: ${player.name}
+            Position: ${player.position}
+            Team: ${player.team}
+            Height: ${player.height ? `${Math.floor(player.height / 12)}'${player.height % 12}"` : 'N/A'}
+            Weight: ${player.weight ? `${player.weight} lbs` : 'N/A'}
+            Jersey Number: ${player.jersey || 'N/A'}
+            Hometown: ${player.hometown || 'N/A'}
+
+            ${cfbdStatsSummary}
+
+            Based on this information, generate the following sections in the exact format specified below.
+            Each section must be clearly demarcated by its header.
+
+            ## OVERVIEW ##
+            Generate 2-3 detailed paragraphs summarizing the player's key attributes, play style, strengths, and weaknesses. Focus on how their real-world performance translates to in-game potential. Be descriptive and analytical.
+
+            ## RATINGS ##
+            Provide 8-10 key attribute ratings for EA Sports College Football 26.
+            Each rating should be on a scale of 1-99 and formatted as a single bullet point: "- [Attribute Name]: [Rating]"
+            Example:
+            - Speed: 88
+            - Strength: 75
+            - Agility: 90
+            - Throw Power: 92
+            - Accuracy: 85
+            - Awareness: 80
+            - Tackle: 70
+            - Break Tackle: 80
+            - Catch: 78
+            - Route Running: 85
+
+            Select attributes relevant to the player's position. If specific stats are missing or player details are limited, make reasonable, informed estimations based on their general position role and college football knowledge. Ensure all ratings are numbers between 1 and 99.
+
+            ## ASSESSMENT ##
+            Provide a concise assessment of the player's overall quality as an EA Sports College Football 26 prospect. This assessment is for internal use for ability assignment, and should be a single number between 1 and 100, representing their overall quality score.
+            Format: "Quality Score: [Number 1-100]"
+            Example: Quality Score: 87
+        `;
+
+        // --- Logging Prompt ---
+        console.log(`[AI Overview API] Prompt sent to OpenAI:\n${prompt}`);
+
+        // Call OpenAI API
         const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
         if (!OPENAI_API_KEY) {
@@ -278,234 +364,138 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: "Server configuration error: OpenAI API key missing." }, { status: 500 });
         }
 
-        const openai = new OpenAI({
-            apiKey: OPENAI_API_KEY,
+        const chatCompletion = await openai.chat.completions.create({
+            model: 'gpt-4o', // Or 'gpt-3.5-turbo' if you prefer
+            messages: [{ role: 'user', content: prompt }],
+            temperature: 0.7, // Keep it somewhat creative but factual
+            max_tokens: 1000,
         });
 
-        // --- START OF UPDATED PROMPT ---
-        const prompt = `Generate a concise college football player overview for ${playerName} from ${teamName} (${playerPosition}) for the ${year} season. Then, generate hypothetical in-game ratings for them for a game like EA Sports College Football 26, for ALL specified categories. Finally, provide an overall player quality assessment.
+        const aiResponseText = chatCompletion.choices[0].message.content;
 
-Follow the exact structure below, using the specified delimiters.
+        // --- Logging Raw AI Response ---
+        console.log(`[AI Overview API] Raw AI Response:\n${aiResponseText}`);
 
-## OVERVIEW ##
-[Generate 2-3 detailed paragraphs for the player overview here. If detailed statistics were not provided (indicated by 'N/A' or general phrasing), mention that and provide a general overview based on common knowledge about college football player roles and potential. Focus on their general profile if specific stats are absent. Keep it professional and informative.]
-
-## RATINGS ##
-[Based on the player's real-world stats, position, and general college football knowledge, generate a list of hypothetical in-game ratings for them for a game like EA Sports College Football 26.
-Important rules for ratings:
-1.  **Be Realistic:** Most players will have many average or low ratings, especially in areas not relevant to their position. For example, a defensive lineman will have very low Throw Power, and an offensive lineman will have very low Man Coverage. A player's rating in a given stat should be proportional to their real-world ability and relevance for their position.
-2.  **Position Relevance:** Assign higher ratings (relative to other players at their position) to stats crucial for the player's primary position. Assign very low ratings (e.g., 0-30) to stats that are generally not applicable or extremely minor for their position.
-3.  **No Overall Rating from this section:** Do NOT calculate or provide an "Overall" rating within this list. The overall assessment is in the next section.
-4.  **Format:** List each stat on a new line, starting with a hyphen, like '- Stat Name: Value (0-99)'.
-
-EA CFB 26 Hypothetical Ratings:
-- Speed: [Value]
-- Strength: [Value]
-- Agility: [Value]
-- Acceleration: [Value]
-- Awareness: [Value]
-- Break Tackle: [Value]
-- Trucking: [Value]
-- Change of Direction: [Value]
-- Ball Carrier Vision: [Value]
-- Stiff Arm: [Value]
-- Spin Move: [Value]
-- Juke Move: [Value]
-- Carrying: [Value]
-- Catching: [Value]
-- Short Route Run: [Value]
-- Medium Route Run: [Value]
-- Deep Route Run: [Value]
-- Catch in Traffic: [Value]
-- Spectacular Catch: [Value]
-- Release: [Value]
-- Jumping: [Value]
-- Throw Power: [Value]
-- Short Throw Accuracy: [Value]
-- Medium Throw Accuracy: [Value]
-- Deep Throw Accuracy: [Value]
-- Throw on the Run: [Value]
-- Throw Under Pressure: [Value]
-- Break Sack: [Value]
-- Play Action: [Value]
-- Tackle: [Value]
-- Hit Power: [Value]
-- Power Moves: [Value]
-- Finesse Moves: [Value]
-- Block Shedding: [Value]
-- Pursuit: [Value]
-- Play Recognition: [Value]
-- Man Coverage: [Value]
-- Zone Coverage: [Value]
-- Long Snap: [Value]
-- Press: [Value]
-- Pass Block: [Value]
-- Pass Block Power: [Value]
-- Pass Block Finesse: [Value]
-- Run Block: [Value]
-- Run Block Power: [Value]
-- Run Block Finesse: [Value]
-- Lead Block: [Value]
-- Impact Blocking: [Value]
-- Kick Power: [Value]
-- Kick Accuracy: [Value]
-- Return: [Value]
-- Stamina: [Value]
-- Injury: [Value]
-- Toughness: [Value]
-
-## ASSESSMENT ##
-Overall Player Quality: [Generate a score out of 100 (e.g., 92/100) or a descriptive term (e.g., Elite, Great, Good, Average) indicating their overall talent/impact for a player at their position. Make this accurate for known players like Joe Burrow, giving him a high score. For less prominent players like Davis Warren, give a lower, more realistic score.]
-
-Available information for AI:
-${cfbdStatsSummary}
-`;
-        // --- END OF UPDATED PROMPT ---
-
-        console.log("Sending prompt to OpenAI API...");
-
-        try {
-            const completion = await openai.chat.completions.create({
-                model: "gpt-4o-mini", // Or your preferred model like "gpt-4"
-                messages: [
-                    { role: "system", content: "You are a concise college football expert. Generate player overviews, hypothetical in-game ratings for ALL specified categories, and an overall player quality assessment. Always follow the specified output format with ## OVERVIEW ##, ## RATINGS ##, and ## ASSESSMENT ## delimiters. If data is limited, provide a general profile and infer ratings based on role." },
-                    { role: "user", content: prompt },
-                ],
-                max_tokens: 1200, // Increased max_tokens significantly to accommodate all 54 stats
-                temperature: 0.7,
-            });
-
-            const aiOverviewFullText = completion.choices[0].message.content;
-
-            if (!aiOverviewFullText) {
-                console.error("OpenAI did not generate any content or unexpected response format:", completion);
-                return NextResponse.json({ error: "AI (OpenAI) did not generate an overview. Try again." }, { status: 500 });
-            }
-
-            console.log("AI Overview generated successfully by OpenAI.");
-            // console.log("Raw AI Response:", aiOverviewFullText); // Uncomment for debugging raw AI response
-
-            // --- Parsing the AI Response ---
-            const overviewSection = aiOverviewFullText.split('## OVERVIEW ##')[1]?.split('## RATINGS ##')[0]?.trim() || "No overview provided by AI.";
-            const ratingsSection = aiOverviewFullText.split('## RATINGS ##')[1]?.split('## ASSESSMENT ##')[0]?.trim();
-            const assessmentSection = aiOverviewFullText.split('## ASSESSMENT ##')[1]?.trim();
-
-            let overview = "Overview not available.";
-            const ratings: string[] = []; // Store as array of strings (e.g., "Speed: 85")
-            let playerQualityScore: number | null = null;
-            const assignedAbilities = []; // Will be populated by backend logic
-
-            if (overviewSection) {
-                // Remove the bracketed instruction from the overview if AI copied it
-                overview = overviewSection.replace(/\[Generate 2-3 paragraphs for the player overview here\.\s*.*?\]/s, '').trim();
-            }
-
-            if (ratingsSection) {
-                const ratingLines = ratingsSection.split('\n');
-                let inRatingsList = false;
-                for (const line of ratingLines) {
-                    // Start capturing ratings after the "EA CFB 26 Hypothetical Ratings:" line
-                    if (line.includes('EA CFB 26 Hypothetical Ratings:')) {
-                        inRatingsList = true;
-                        continue;
-                    }
-                    // Capture lines that start with a hyphen and contain a colon (indicating "Stat Name: Value")
-                    if (inRatingsList && line.trim().startsWith('-') && line.includes(':')) {
-                        ratings.push(line.trim().substring(1).trim()); // Remove the hyphen and trim
-                    } else if (inRatingsList && line.trim() === '') {
-                        // Allow empty lines within the list
-                        continue;
-                    } else if (inRatingsList && !line.trim().startsWith('-') && line.trim() !== '') {
-                        // Stop if we encounter a non-empty, non-hyphen line after the list started
-                        break;
-                    }
-                }
-            }
-
-            if (assessmentSection) {
-                // Try to find a score like "92/100"
-                const scoreMatch = assessmentSection.match(/(\d+)\/100/);
-                if (scoreMatch && scoreMatch[1]) {
-                    playerQualityScore = parseInt(scoreMatch[1], 10);
-                } else {
-                    // If no numerical score, infer from descriptive terms
-                    const assessmentLower = assessmentSection.toLowerCase();
-                    if (assessmentLower.includes("elite")) {
-                        playerQualityScore = 95;
-                    } else if (assessmentLower.includes("great") || assessmentLower.includes("top-tier")) {
-                        playerQualityScore = 85;
-                    } else if (assessmentLower.includes("good") || assessmentLower.includes("solid")) {
-                        playerQualityScore = 75;
-                    } else if (assessmentLower.includes("average") || assessmentLower.includes("decent")) {
-                        playerQualityScore = 65;
-                    } else {
-                        playerQualityScore = 50; // Default if no clear indicator
-                    }
-                }
-            }
-
-            // --- Ability Assignment Logic (from your existing code) ---
-            const relevantAbilities = allAbilities.filter(
-                ability => ability.positions.includes(playerPosition) || ability.positions.includes("Any")
-            );
-
-            // Assign a random number of abilities between 3 and 5
-            const numAbilitiesToAssign = Math.floor(Math.random() * 3) + 3;
-
-            // Determine base tier index based on playerQualityScore
-            let baseTierIndex = 0; // Default to Bronze
-            if (playerQualityScore !== null) {
-                if (playerQualityScore >= 90) baseTierIndex = 4; // X-Factor (index 4)
-                else if (playerQualityScore >= 80) baseTierIndex = 3; // Platinum (index 3)
-                else if (playerQualityScore >= 70) baseTierIndex = 2; // Gold (index 2)
-                else if (playerQualityScore >= 60) baseTierIndex = 1; // Silver (index 1)
-                else baseTierIndex = 0; // Bronze (index 0 for scores below 60)
-            }
-
-            // Shuffle and select abilities
-            const shuffledAbilities = relevantAbilities.sort(() => 0.5 - Math.random());
-            const selectedAbilities = shuffledAbilities.slice(0, numAbilitiesToAssign);
-
-            for (const ability of selectedAbilities) {
-                // Introduce some variability around the baseTierIndex
-                // Generates -1, 0, or 1. This means an ability can be one tier lower, same tier, or one tier higher than the base.
-                let finalTierIndex = baseTierIndex + (Math.floor(Math.random() * 3) - 1);
-                // Ensure the final tier index stays within the valid bounds [0, tiers.length - 1]
-                finalTierIndex = Math.max(0, Math.min(tiers.length - 1, finalTierIndex));
-
-                const finalTier = tiers[finalTierIndex];
-
-                // Push the assigned ability to the array that will be sent to the frontend
-                assignedAbilities.push({
-                    name: ability.name,
-                    tier: finalTier,
-                    description: ability.description
-                });
-            }
-
-            return NextResponse.json({
-                aiOverview: overview,
-                aiRatings: ratings,
-                assignedAbilities: assignedAbilities
-            }, { status: 200 });
-
-        } catch (openaiError: any) {
-            console.error(`Error calling OpenAI API:`, openaiError);
-            const errorMessage = openaiError.message || "An unknown error occurred with the OpenAI API.";
-            const errorDetails = openaiError.response?.data || openaiError; // OpenAI API errors have a .response.data
-
-            return NextResponse.json({
-                error: `Failed to get overview from OpenAI API.`,
-                details: errorMessage,
-                rawError: errorDetails
-            }, { status: openaiError.status || 500 });
+        if (!aiResponseText) {
+            console.error('[AI Overview API] OpenAI returned an empty response.');
+            return NextResponse.json({ error: 'OpenAI did not return a valid response.' }, { status: 500 });
         }
 
-    } catch (outerError: any) {
-        console.error("OUTER CATCH: Generic error in AI overview generation route:", outerError);
-        return NextResponse.json(
-            { error: "Failed to generate AI overview due to a server error.", details: outerError.message },
-            { status: 500 }
+        // --- Parsing AI Response ---
+        let aiOverview = "No AI overview available.";
+        let aiRatings: string[] = [];
+        let playerQualityScore: number | null = null;
+
+        // Overview parsing
+        const overviewMatch = aiResponseText.match(/## OVERVIEW ##\s*([\s\S]*?)(?=## RATINGS ##|$)/);
+        if (overviewMatch && overviewMatch[1]) {
+            aiOverview = overviewMatch[1].trim();
+        }
+
+        // Ratings parsing (more robust)
+        const ratingsMatch = aiResponseText.match(/## RATINGS ##\s*([\s\S]*?)(?=## ASSESSMENT ##|$)/);
+        if (ratingsMatch && ratingsMatch[1]) {
+            const rawRatingLines = ratingsMatch[1].split('\n');
+            aiRatings = rawRatingLines
+                .map(line => {
+                    const trimmedLine = line.trim();
+                    // Strip leading bullet points/hyphens and then trim
+                    if (trimmedLine.startsWith('- ')) {
+                        return trimmedLine.substring(2).trim();
+                    }
+                    if (trimmedLine.startsWith('* ')) { // In case AI uses asterisks
+                        return trimmedLine.substring(2).trim();
+                    }
+                    // If it's just "Attribute: Value" without a leading bullet
+                    if (trimmedLine.includes(':') && trimmedLine.split(':')[1].trim().match(/^\d+$/)) {
+                        return trimmedLine;
+                    }
+                    return ''; // Ignore lines that don't match expected format
+                })
+                .filter(line => line !== '' && line.includes(':') && line.split(':')[1].trim().match(/^\d+$/)); // Final filter for valid rating lines
+        }
+
+        // Quality Score parsing
+        const assessmentMatch = aiResponseText.match(/## ASSESSMENT ##\s*Quality Score:\s*(\d+)/);
+        if (assessmentMatch && assessmentMatch[1]) {
+            playerQualityScore = parseInt(assessmentMatch[1], 10);
+        } else {
+             // Fallback for descriptive assessments
+            const descriptiveScoreMatch = aiResponseText.match(/## ASSESSMENT ##\s*Overall Player Quality:\s*(.*?)(?=\n|$)/i);
+            if (descriptiveScoreMatch && descriptiveScoreMatch[1]) {
+                const assessmentText = descriptiveScoreMatch[1].toLowerCase();
+                if (assessmentText.includes("elite")) playerQualityScore = 95;
+                else if (assessmentText.includes("great") || assessmentText.includes("top-tier")) playerQualityScore = 85;
+                else if (assessmentText.includes("good") || assessmentText.includes("solid")) playerQualityScore = 75;
+                else if (assessmentText.includes("average") || assessmentText.includes("decent")) playerQualityScore = 65;
+                else if (assessmentText.includes("poor") || assessmentText.includes("low")) playerQualityScore = 40;
+                else playerQualityScore = 50; // Default if no clear indicator
+            }
+        }
+
+
+        // --- Logging Parsed Data ---
+        console.log(`[AI Overview API] Parsed Overview:`, aiOverview);
+        console.log(`[AI Overview API] Parsed Ratings:`, aiRatings);
+        console.log(`[AI Overview API] Parsed Quality Score:`, playerQualityScore);
+
+        // --- Ability Assignment Logic (Moved directly into route.ts) ---
+        const assignedAbilities: AssignedAbility[] = [];
+        const relevantAbilities = allAbilities.filter(
+            ability => ability.positions.includes(playerPosition) || ability.positions.includes("Any")
         );
+
+        if (playerQualityScore !== null) {
+            const numAbilitiesToAssign = Math.floor(Math.random() * 3) + 3; // Assign 3 to 5 abilities
+
+            let baseTierIndex = 0; // Default to Bronze
+            if (playerQualityScore >= 90) baseTierIndex = 4; // X-Factor (index 4)
+            else if (playerQualityScore >= 80) baseTierIndex = 3; // Platinum (index 3)
+            else if (playerQualityScore >= 70) baseTierIndex = 2; // Gold (index 2)
+            else if (playerQualityScore >= 60) baseTierIndex = 1; // Silver (index 1)
+
+            // Randomly select abilities and assign a tier, biasing towards the base tier
+            const shuffledAbilities = relevantAbilities.sort(() => 0.5 - Math.random());
+            for (let i = 0; i < Math.min(numAbilitiesToAssign, shuffledAbilities.length); i++) {
+                const ability = shuffledAbilities[i];
+                // Randomly select a tier, with higher probability for the baseTierIndex or one below it
+                let randomTierIndex = Math.floor(Math.random() * (baseTierIndex + 1));
+                if (randomTierIndex > tiers.length - 1) { // Ensure it doesn't exceed array bounds
+                    randomTierIndex = tiers.length - 1;
+                }
+                const assignedTier = tiers[randomTierIndex];
+
+                assignedAbilities.push({
+                    name: ability.name,
+                    tier: assignedTier,
+                    description: ability.description,
+                });
+            }
+        }
+        console.log(`[AI Overview API] Assigned Abilities:`, assignedAbilities);
+
+
+        return NextResponse.json({
+            aiOverview,
+            aiRatings,
+            assignedAbilities,
+            playerQualityScore, // Include quality score in response if frontend needs it
+        });
+
+    } catch (error: any) {
+        console.error('[AI Overview API] Error:', error);
+        // More specific error messages for known issues
+        if (error instanceof OpenAI.APIError) {
+            console.error(error.status); // e.g. 401
+            console.error(error.message); // e.g. The authentication token you passed was invalid...
+            console.error(error.code); // e.g. 'invalid_api_key'
+            console.error(error.type); // e.g. 'authentication_error'
+            return NextResponse.json(
+                { error: 'OpenAI API Error', details: error.message, code: error.code, type: error.type },
+                { status: error.status || 500 }
+            );
+        } else {
+            return NextResponse.json({ error: 'Internal Server Error', details: error.message || 'Unknown error' }, { status: 500 });
+        }
     }
 }
