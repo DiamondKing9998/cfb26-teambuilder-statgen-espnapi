@@ -18,9 +18,9 @@ interface CfbdPlayer {
     jersey: number | null; // Allow null as per CFBD API data
     hometown: string | null; // Allow null as per CFBD API data
     team: string;
-    teamColor: string;
+    teamColor: string; // Primary team color (e.g., Michigan Blue)
     teamLogo: string;
-    teamAlternateColor: string;
+    teamAlternateColor: string; // Secondary team color (e.g., Michigan Maize)
     teamDarkLogo: string;
 }
 
@@ -40,10 +40,7 @@ interface PlayerDetails {
     error: string | null;
 }
 
-// The parseAiResponse on the client side is mostly for fallback or if we want to re-parse.
-// In this setup, the server-side API already parses and sends structured data.
-// This function might not be strictly necessary if your /api/ai-overview always returns structured JSON.
-// Keeping it for robustness if there are cases where raw text might be received.
+// This client-side parser is kept for robustness, but the API is expected to return structured data.
 const parseAiResponse = (fullText: string) => {
     const overviewSection = fullText.split('## OVERVIEW ##')[1]?.split('## RATINGS ##')[0]?.trim();
     const ratingsSection = fullText.split('## RATINGS ##')[1]?.split('## ASSESSMENT ##')[0]?.trim();
@@ -72,9 +69,6 @@ const parseAiResponse = (fullText: string) => {
             }
         }
     }
-
-    // Note: assignedAbilities are expected to come directly as structured JSON from the API,
-    // so this client-side parser doesn't handle them.
     return { overview, ratings };
 };
 
@@ -82,12 +76,14 @@ const parseAiResponse = (fullText: string) => {
 export default function PlayerDetailPage() {
     const searchParams = useSearchParams();
 
-    // Initialize with default values. Some player fields can be null from CFBD.
     const [playerDetails, setPlayerDetails] = useState<PlayerDetails>({
         player: {
             id: '', firstName: '', lastName: '', name: '', position: '',
             height: null, weight: null, jersey: null, hometown: null, team: '',
-            teamColor: '', teamLogo: '', teamAlternateColor: '', teamDarkLogo: ''
+            teamColor: '#000000', // Default black
+            teamLogo: '',
+            teamAlternateColor: '#FFFFFF', // Default white
+            teamDarkLogo: ''
         },
         aiOverview: 'Loading AI Overview...',
         aiRatings: [],
@@ -98,7 +94,8 @@ export default function PlayerDetailPage() {
 
     const fetchTeamDetails = async (teamName: string) => {
         try {
-            const teamsProxyUrl = `/api/cfbd-proxy?target=teams&year=2024`; // Assuming year 2024 for team data
+            // Using a fixed year for team details for consistent logo/colors
+            const teamsProxyUrl = `/api/cfbd-proxy?target=teams&year=2024`;
             const teamsResponse = await fetch(teamsProxyUrl);
 
             if (teamsResponse.ok) {
@@ -117,6 +114,7 @@ export default function PlayerDetailPage() {
         } catch (error) {
             console.error("Error fetching team details:", error);
         }
+        // Fallback colors if team details can't be fetched
         return {
             teamColor: '#4A5568', // bg-gray-700 fallback
             teamAlternateColor: '#A0AEC0', // bg-gray-400 fallback
@@ -151,7 +149,6 @@ export default function PlayerDetailPage() {
                     teamDarkLogo: teamInfo.teamDarkLogo,
                 };
 
-                // Set initial player data and indicate loading for AI content
                 setPlayerDetails(prev => ({
                     ...prev,
                     player: playerWithTeamDetails,
@@ -162,7 +159,7 @@ export default function PlayerDetailPage() {
                     assignedAbilities: [] // Clear previous abilities
                 }));
 
-                // Fetch AI overview, ratings, and abilities from your new API route
+                // Fetch AI overview, ratings, and abilities
                 const response = await fetch('/api/ai-overview', {
                     method: 'POST',
                     headers: {
@@ -173,7 +170,6 @@ export default function PlayerDetailPage() {
 
                 if (response.ok) {
                     const data = await response.json();
-                    // Assuming the API now returns structured `overview`, `ratings`, and `assignedAbilities`
                     const { overview, ratings, assignedAbilities } = data;
 
                     setPlayerDetails(prev => ({
@@ -251,9 +247,12 @@ export default function PlayerDetailPage() {
     return (
         <div className="min-h-screen bg-gray-900 text-white p-4 sm:p-8">
             <div className="max-w-4xl mx-auto bg-gray-800 rounded-lg shadow-lg overflow-hidden">
-                {/* Player Header Section - Updated to include core stats */}
-                <div className="relative p-6 sm:p-8 text-center" style={{ background: `radial-gradient(circle at center, #E5E7EB, #111827)` }}>
-                    <Link href="/" className="absolute top-4 left-4 text-blue-300 hover:text-blue-500 transition duration-300 flex items-center gap-2">
+                {/* Player Header Section - Dynamic background and text colors */}
+                <div
+                    className="relative p-6 sm:p-8 text-center"
+                    style={{ backgroundColor: player.teamColor || '#000000' }} // Set background to primary team color
+                >
+                    <Link href="/" className="absolute top-4 left-4 text-white hover:text-gray-200 transition duration-300 flex items-center gap-2">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
                         </svg>
@@ -270,13 +269,21 @@ export default function PlayerDetailPage() {
                                 className="mx-auto mb-4 bg-white p-2 rounded-full shadow-md"
                             />
                         )}
-                        <h1 className="text-3xl sm:text-4xl font-bold mb-2">{player.name.toUpperCase()}</h1>
-                        <p className="text-lg sm:text-xl text-gray-300">
+                        <h1
+                            className="text-3xl sm:text-4xl font-bold mb-2"
+                            style={{ color: player.teamAlternateColor || '#FFFFFF' }} // Set player name to secondary team color
+                        >
+                            {player.name.toUpperCase()}
+                        </h1>
+                        <p
+                            className="text-lg sm:text-xl"
+                            style={{ color: player.teamAlternateColor || '#FFFFFF' }} // Set subtitle to secondary team color
+                        >
                             {player.team || 'N/A Team'} | {player.position || 'N/A Pos'} | {searchParams.get('year') || 'N/A Season'}
                         </p>
 
-                        {/* Player Core Stats - Now within the header */}
-                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-x-6 gap-y-2 mt-6 text-base sm:text-lg justify-items-center">
+                        {/* Player Core Stats - Keeping text-white for general readability, consider if alternate color is always legible here */}
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-x-6 gap-y-2 mt-6 text-base sm:text-lg justify-items-center text-white">
                             <p><strong>Jersey:</strong> {player.jersey ? `#${player.jersey}` : 'N/A'}</p>
                             <p><strong>Height:</strong> {formattedHeight}</p>
                             <p><strong>Weight:</strong> {player.weight ? `${player.weight} lbs` : 'N/A'}</p>
