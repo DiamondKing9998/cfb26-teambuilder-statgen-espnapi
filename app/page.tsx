@@ -1,8 +1,9 @@
+// src/app/page.tsx
+
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
 import './globals.css';
-import Link from 'next/link'; // <--- ADDED THIS IMPORT
 
 // --- Interfaces for CollegeFootballData.com API ---
 
@@ -81,9 +82,44 @@ interface PlayerResultsProps {
     currentSearchYear: string; // Added to pass down to PlayerCard
 }
 
-// --- PlayerCard Component (UPDATED to navigate to a new page) ---
+// --- PlayerCard Component (UPDATED with AI button and overview display) ---
 const PlayerCard: React.FC<PlayerCardProps> = ({ player, searchYear }) => {
     const displayName = player.name || `${player.firstName || ''} ${player.lastName || ''}`.trim() || 'N/A Name';
+    const [aiOverview, setAiOverview] = useState<string | null>(null);
+    const [isLoadingAI, setIsLoadingAI] = useState<boolean>(false);
+    const [aiError, setAiError] = useState<string | null>(null);
+
+    const handleGenerateAIOverview = async () => {
+        setIsLoadingAI(true);
+        setAiOverview(null); // Clear previous overview
+        setAiError(null);     // Clear previous error
+
+        try {
+            // Call the new AI overview API route
+            const response = await fetch('/api/ai-overview', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                // Send player's full data and the year being displayed
+                body: JSON.stringify({ player, year: searchYear }),
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to generate AI overview');
+            }
+
+            const data = await response.json();
+            setAiOverview(data.overview); // Assuming the AI route returns { overview: "..." }
+
+        } catch (error: any) {
+            console.error("Error generating AI overview:", error);
+            setAiError(error.message || "Could not generate AI overview.");
+        } finally {
+            setIsLoadingAI(false);
+        }
+    };
 
     return (
         <div className="player-card">
@@ -94,26 +130,23 @@ const PlayerCard: React.FC<PlayerCardProps> = ({ player, searchYear }) => {
                 <p>Height: {Math.floor(player.height / 12)}'{player.height % 12}" | Weight: {player.weight} lbs</p>
             )}
 
-            {/* AI Overview Button - now a Link to the new dynamic page */}
-            <Link 
-                href={{
-                    pathname: `/player-overview/${player.id}`,
-                    query: {
-                        playerName: displayName,
-                        teamName: player.team || '',
-                        position: player.position || '',
-                        jersey: player.jersey || '',
-                        height: player.height || '',
-                        weight: player.weight || '',
-                        hometown: player.hometown || '',
-                        year: searchYear || '',
-                        // Pass any other player data you need on the new page
-                    },
-                }}
-                className="ai-overview-button-link" // Add a class for styling (you might need to define this in globals.css)
-            >
-                Generate AI Overview
-            </Link>
+            {/* AI Overview Button */}
+            <button onClick={handleGenerateAIOverview} disabled={isLoadingAI}>
+                {isLoadingAI ? 'Generating...' : 'Generate AI Overview'}
+            </button>
+
+            {/* Display AI Overview or Error */}
+            {aiOverview && (
+                <div className="ai-overview-box">
+                    <h5>AI Player Overview:</h5>
+                    <p>{aiOverview}</p>
+                </div>
+            )}
+            {aiError && (
+                <div className="ai-error-message">
+                    {aiError}
+                </div>
+            )}
         </div>
     );
 };
