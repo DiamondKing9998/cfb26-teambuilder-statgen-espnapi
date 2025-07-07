@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import OpenAI from 'openai'; // Import the OpenAI library
 
 export async function POST(request: Request) {
     try {
@@ -18,8 +19,6 @@ export async function POST(request: Request) {
         const playerHometown = player.hometown || 'N/A';
 
         // --- CollegeFootballData.com API Call ---
-        // This part is modified to retrieve player stats for the specific year,
-        // which can then be fed to the AI.
         const CFBD_API_KEY = process.env.CFBD_API_KEY; // Ensure this is set in Vercel
 
         if (!CFBD_API_KEY) {
@@ -30,9 +29,6 @@ export async function POST(request: Request) {
         let cfbdStatsSummary = `Basic player info: Name: ${playerName}, Team: ${teamName}, Position: ${playerPosition}, Jersey: ${playerJersey}, Height: ${playerHeight}, Weight: ${playerWeight}, Hometown: ${playerHometown}.`;
         
         try {
-            // Attempt to get detailed player stats for the specified year.
-            // This endpoint might need adjustment based on CFBD's actual stats API.
-            // A common one is /player/season/stats or /player/season/usage
             const cfbdStatsUrl = `https://api.collegefootballdata.com/player/stats?year=${year}&team=${encodeURIComponent(teamName)}&player=${encodeURIComponent(playerName)}`;
             
             console.log(`Attempting to fetch detailed stats from CFBD: ${cfbdStatsUrl}`);
@@ -48,8 +44,6 @@ export async function POST(request: Request) {
                 console.log("Raw CFBD stats data:", statsData);
 
                 if (statsData && statsData.length > 0) {
-                    // This is a basic way to summarize stats. You might want to refine this
-                    // to pick specific, relevant statistics.
                     const relevantStats = statsData.map((s: any) => `${s.statName}: ${s.statValue}`).join(', ');
                     cfbdStatsSummary += `\nDetailed stats for ${year} season: ${relevantStats}.`;
                 } else {
@@ -65,18 +59,18 @@ export async function POST(request: Request) {
             cfbdStatsSummary += `\nError retrieving detailed stats from CollegeFootballData.com: ${cfbdError.message}.`;
         }
 
-        // --- DeepSeek API Call ---
-        const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY; // Ensure this is set in Vercel!
+        // --- OpenAI API Call ---
+        const OPENAI_API_KEY = process.env.OPENAI_API_KEY; // This should be set in Vercel
 
-        if (!DEEPSEEK_API_KEY) {
-            console.error("DEEPSEEK_API_KEY environment variable is not set.");
-            return NextResponse.json({ error: "Server configuration error: DeepSeek API key missing." }, { status: 500 });
+        if (!OPENAI_API_KEY) {
+            console.error("OPENAI_API_KEY environment variable is not set.");
+            return NextResponse.json({ error: "Server configuration error: OpenAI API key missing." }, { status: 500 });
         }
 
-        // --- THESE ARE PLACEHOLDERS ---
-        // You MUST find the exact API URL and model name from DeepSeek's official documentation.
-        const DEEPSEEK_MODEL = "deepseek-chat"; // Example: deepseek-chat, deepseek-coder
-        const DEEPSEEK_API_URL = "https://api.deepseek.com/chat/completions"; // Example: https://api.deepseek.com/chat/completions
+        // Initialize OpenAI client
+        const openai = new OpenAI({
+            apiKey: OPENAI_API_KEY,
+        });
 
         const prompt = `Generate a concise, 2-3 paragraph college football player overview for ${playerName} from ${teamName} for the ${year} season. 
         
@@ -85,44 +79,42 @@ export async function POST(request: Request) {
         
         If detailed statistics were not provided, mention that and provide a general overview based on common knowledge about college football player roles and potential. Focus on their general profile if specific stats are absent. Keep it professional and informative.`;
 
-        console.log("Sending prompt to DeepSeek API...");
+        console.log("Sending prompt to OpenAI API...");
 
-        const deepseekResponse = await fetch(DEEPSEEK_API_URL, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
-            },
-            body: JSON.stringify({
-                model: DEEPSEEK_MODEL,
+        try {
+            const completion = await openai.chat.completions.create({
+                model: "gpt-4o-mini", // Explicitly using the gpt-4o-mini model
                 messages: [
                     { role: "system", content: "You are a concise college football expert. Provide player overviews based on provided data. If data is limited, provide a general profile." },
                     { role: "user", content: prompt },
                 ],
                 max_tokens: 300, // Adjust as needed to control response length
                 temperature: 0.7, // Adjust creativity (0.0-1.0)
-            }),
-        });
+            });
 
-        if (!deepseekResponse.ok) {
-            const errorBody = await deepseekResponse.text(); // Get raw error response for debugging
-            console.error(`DeepSeek API returned non-OK status ${deepseekResponse.status}: ${errorBody}`);
+            const aiOverviewText = completion.choices[0].message.content;
+
+            if (!aiOverviewText) {
+                console.error("OpenAI did not generate any content or unexpected response format:", completion);
+                return NextResponse.json({ error: "AI (OpenAI) did not generate an overview. Try again." }, { status: 500 });
+            }
+
+            console.log("AI Overview generated successfully by OpenAI.");
+            return NextResponse.json({ overview: aiOverviewText });
+
+        } catch (openaiError: any) {
+            // OpenAI SDK throws errors for non-2xx responses or network issues
+            console.error(`Error calling OpenAI API:`, openaiError);
+            // Check if it's an OpenAI APIError for specific details
+            const errorMessage = openaiError.message || "An unknown error occurred with the OpenAI API.";
+            const errorDetails = openaiError.response?.data || openaiError; // Get more details if available
+
             return NextResponse.json({ 
-                error: `Failed to get overview from DeepSeek API (Status: ${deepseekResponse.status}).`,
-                details: errorBody // Include raw error for debugging
-            }, { status: deepseekResponse.status });
+                error: `Failed to get overview from OpenAI API.`,
+                details: errorMessage,
+                rawError: errorDetails
+            }, { status: openaiError.status || 500 }); // Use OpenAI's status code if available
         }
-
-        const deepseekData = await deepseekResponse.json();
-        const aiOverviewText = deepseekData.choices?.[0]?.message?.content;
-
-        if (!aiOverviewText) {
-            console.error("DeepSeek did not generate any content or unexpected response format:", deepseekData);
-            return NextResponse.json({ error: "AI (DeepSeek) did not generate an overview. Try again." }, { status: 500 });
-        }
-
-        console.log("AI Overview generated successfully by DeepSeek.");
-        return NextResponse.json({ overview: aiOverviewText });
 
     } catch (outerError: any) {
         console.error("OUTER CATCH: Generic error in AI overview generation route:", outerError);
@@ -132,5 +124,3 @@ export async function POST(request: Request) {
         );
     }
 }
-
-//this should work now hopefully
