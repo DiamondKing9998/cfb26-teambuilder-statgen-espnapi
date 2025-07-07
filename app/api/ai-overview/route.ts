@@ -12,7 +12,7 @@ export async function POST(request: Request) {
 
         const playerName = player.name || `${player.firstName || ''} ${player.lastName || ''}`.trim();
         const teamName = player.team;
-        const playerPosition = player.position || 'N/A';
+        const playerPosition = player.position ? player.position.toUpperCase() : 'N/A'; // Convert to uppercase for easier matching
         const playerJersey = player.jersey ? `#${player.jersey}` : 'N/A';
         const playerHeight = player.height ? `${Math.floor(player.height / 12)}'${player.height % 12}"` : 'N/A';
         const playerWeight = player.weight ? `${player.weight} lbs` : 'N/A';
@@ -44,8 +44,72 @@ export async function POST(request: Request) {
                 console.log("Raw CFBD stats data:", statsData);
 
                 if (statsData && statsData.length > 0) {
-                    const relevantStats = statsData.map((s: any) => `${s.statName}: ${s.statValue}`).join(', ');
-                    cfbdStatsSummary += `\nDetailed stats for ${year} season: ${relevantStats}.`;
+                    // --- Improved Stat Extraction based on Position ---
+                    let specificStats: string[] = [];
+                    const statsMap = new Map<string, any>(); // Map for easier lookup: statName -> statObject
+
+                    // Populate map for quick access
+                    statsData.forEach((s: any) => {
+                        statsMap.set(`${s.category}_${s.statName}`, s.statValue);
+                    });
+
+                    // Define which stats to look for based on position
+                    if (playerPosition.includes('QB')) {
+                        specificStats.push(`Passing Yards: ${statsMap.get('passing_yards') || 'N/A'}`);
+                        specificStats.push(`Passing TDs: ${statsMap.get('passing_tds') || 'N/A'}`);
+                        specificStats.push(`Completions: ${statsMap.get('passing_completions') || 'N/A'}`);
+                        specificStats.push(`Attempts: ${statsMap.get('passing_attempts') || 'N/A'}`);
+                        const completionPct = statsMap.has('passing_completions') && statsMap.has('passing_attempts') && statsMap.get('passing_attempts') > 0
+                            ? ((statsMap.get('passing_completions') / statsMap.get('passing_attempts')) * 100).toFixed(1) + '%'
+                            : 'N/A';
+                        specificStats.push(`Completion %: ${completionPct}`);
+                        specificStats.push(`Interceptions: ${statsMap.get('passing_interceptions') || 'N/A'}`);
+                        specificStats.push(`Rushing Yards (QB): ${statsMap.get('rushing_yards') || 'N/A'}`); // QBs can rush too
+                        specificStats.push(`Rushing TDs (QB): ${statsMap.get('rushing_tds') || 'N/A'}`);
+                    } else if (playerPosition.includes('RB') || playerPosition.includes('FB')) {
+                        specificStats.push(`Rushing Yards: ${statsMap.get('rushing_yards') || 'N/A'}`);
+                        specificStats.push(`Rushing TDs: ${statsMap.get('rushing_tds') || 'N/A'}`);
+                        specificStats.push(`Carries: ${statsMap.get('rushing_attempts') || 'N/A'}`);
+                        specificStats.push(`Receptions: ${statsMap.get('receiving_receptions') || 'N/A'}`);
+                        specificStats.push(`Receiving Yards: ${statsMap.get('receiving_yards') || 'N/A'}`);
+                        specificStats.push(`Receiving TDs: ${statsMap.get('receiving_tds') || 'N/A'}`);
+                    } else if (playerPosition.includes('WR') || playerPosition.includes('TE')) {
+                        specificStats.push(`Receptions: ${statsMap.get('receiving_receptions') || 'N/A'}`);
+                        specificStats.push(`Receiving Yards: ${statsMap.get('receiving_yards') || 'N/A'}`);
+                        specificStats.push(`Receiving TDs: ${statsMap.get('receiving_tds') || 'N/A'}`);
+                        specificStats.push(`Targets: ${statsMap.get('receiving_targets') || 'N/A'}`);
+                    } else if (playerPosition.includes('LB') || playerPosition.includes('DB') || playerPosition.includes('S') || playerPosition.includes('CB')) {
+                        specificStats.push(`Total Tackles: ${statsMap.get('defense_totalTackles') || 'N/A'}`);
+                        specificStats.push(`Sacks: ${statsMap.get('defense_sacks') || 'N/A'}`);
+                        specificStats.push(`Tackles for Loss: ${statsMap.get('defense_tacklesForLoss') || 'N/A'}`);
+                        specificStats.push(`Interceptions: ${statsMap.get('defense_interceptions') || 'N/A'}`);
+                        specificStats.push(`Pass Breakups: ${statsMap.get('defense_passBreakups') || 'N/A'}`);
+                        specificStats.push(`Forced Fumbles: ${statsMap.get('defense_forcedFumbles') || 'N/A'}`);
+                    } else if (playerPosition.includes('DL') || playerPosition.includes('DT') || playerPosition.includes('DE')) {
+                        specificStats.push(`Total Tackles: ${statsMap.get('defense_totalTackles') || 'N/A'}`);
+                        specificStats.push(`Sacks: ${statsMap.get('defense_sacks') || 'N/A'}`);
+                        specificStats.push(`Tackles for Loss: ${statsMap.get('defense_tacklesForLoss') || 'N/A'}`);
+                        specificStats.push(`QB Hurries: ${statsMap.get('defense_quarterbackHurries') || 'N/A'}`);
+                    } else if (playerPosition.includes('K') || playerPosition.includes('P')) { // Kicker/Punter
+                        specificStats.push(`Field Goals Made: ${statsMap.get('kicking_fgm') || 'N/A'}`);
+                        specificStats.push(`Field Goals Att: ${statsMap.get('kicking_fga') || 'N/A'}`);
+                        specificStats.push(`Extra Points Made: ${statsMap.get('kicking_pat') || 'N/A'}`);
+                        specificStats.push(`Punt Yards: ${statsMap.get('punting_yards') || 'N/A'}`);
+                        specificStats.push(`Punts: ${statsMap.get('punting_punts') || 'N/A'}`);
+                    } else {
+                        // For other positions or if no specific stats are found
+                        // Fallback to a general summary of available stats
+                        const availableStatNames = statsData.map((s: any) => `${s.statName}: ${s.statValue}`).join(', ');
+                        if (availableStatNames) {
+                            specificStats.push(`All available stats: ${availableStatNames}`);
+                        }
+                    }
+
+                    if (specificStats.length > 0) {
+                        cfbdStatsSummary += `\nKey stats for ${year} season: ${specificStats.filter(s => !s.includes('N/A')).join(', ')}.`;
+                    } else {
+                        cfbdStatsSummary += `\nNo specific statistical data found for ${playerName} in ${year} from CollegeFootballData.com.`;
+                    }
                 } else {
                     cfbdStatsSummary += `\nNo specific statistical data found for ${playerName} in ${year} from CollegeFootballData.com.`;
                 }
@@ -77,7 +141,7 @@ export async function POST(request: Request) {
         Here's the available information:
         ${cfbdStatsSummary}
         
-        If detailed statistics were not provided, mention that and provide a general overview based on common knowledge about college football player roles and potential. Focus on their general profile if specific stats are absent. Keep it professional and informative.`;
+        If detailed statistics were not provided (indicated by 'N/A' or general phrasing), mention that and provide a general overview based on common knowledge about college football player roles and potential. Focus on their general profile if specific stats are absent. Keep it professional and informative.`;
 
         console.log("Sending prompt to OpenAI API...");
 
@@ -103,17 +167,15 @@ export async function POST(request: Request) {
             return NextResponse.json({ overview: aiOverviewText });
 
         } catch (openaiError: any) {
-            // OpenAI SDK throws errors for non-2xx responses or network issues
             console.error(`Error calling OpenAI API:`, openaiError);
-            // Check if it's an OpenAI APIError for specific details
             const errorMessage = openaiError.message || "An unknown error occurred with the OpenAI API.";
-            const errorDetails = openaiError.response?.data || openaiError; // Get more details if available
+            const errorDetails = openaiError.response?.data || openaiError; 
 
             return NextResponse.json({ 
                 error: `Failed to get overview from OpenAI API.`,
                 details: errorMessage,
                 rawError: errorDetails
-            }, { status: openaiError.status || 500 }); // Use OpenAI's status code if available
+            }, { status: openaiError.status || 500 });
         }
 
     } catch (outerError: any) {
