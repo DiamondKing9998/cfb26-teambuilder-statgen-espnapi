@@ -1,7 +1,7 @@
 // src/app/api/ai-overview/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
-import OpenAI from 'openai';
+import OpenAI from 'openai'; // Added this import
 
 // Define interfaces for type safety
 interface CfbdPlayer {
@@ -23,6 +23,7 @@ interface AssignedAbility {
     description: string;
 }
 
+// Re-defining allAbilities and tiers as they were included in your provided original file
 const allAbilities = [
     // Quarterbacks
     { name: "Backfield Creator", positions: ["QB"], description: "Exceptional at creating plays from the backfield." },
@@ -297,7 +298,7 @@ export async function POST(req: NextRequest) {
         }
 
 
-        // Construct the detailed prompt for OpenAI - MODIFIED PROMPT
+        // Construct the detailed prompt for OpenAI
         const prompt = `
             You are an expert college football analyst for the new EA Sports College Football 26 video game.
             Your task is to analyze a player's real-world performance for the ${year} season and provide a detailed scout report for the game.
@@ -317,8 +318,7 @@ export async function POST(req: NextRequest) {
             Each section must be clearly demarcated by its header.
 
             ## OVERVIEW ##
-            Generate 2-3 detailed paragraphs summarizing the player's key attributes, play style, strengths, and weaknesses.
-            **Think outside the box**: Go beyond just listing stats. Focus on their on-field identity, how they uniquely impact games, and their narrative arc. Describe how their tangible and intangible skills manifest in game situations. Incorporate real-world stats (like tackles for loss, passing yards, forced fumbles) creatively into the narrative as evidence, rather than just listing them. For example, instead of "X tackles for loss", describe "His disruptive presence is evident in his consistent ability to penetrate the backfield, leading to multiple tackles for loss."
+            Generate 2-3 detailed paragraphs summarizing the player's key attributes, play style, strengths, and weaknesses. Focus on how their real-world performance translates to in-game potential. Be descriptive and analytical.
 
             ## RATINGS ##
             Provide hypothetical in-game ratings for the player for EA Sports College Football 26.
@@ -400,58 +400,6 @@ export async function POST(req: NextRequest) {
             - Return: [Value]
             - Long Snap: [Value]
 
-            ## ADDITIONAL PLAYER DETAILS ##
-            Provide the following additional details about the player based on the available information and general football knowledge.
-            - Class: [Freshman/Sophomore/Junior/Senior. Infer based on typical college career progression if direct info isn't available, or state N/A if impossible]
-            - Redshirted: [Yes/No/Uncertain]
-            - High School Rating: [e.g., 5-star, 4-star, 3-star, 2-star, Unrated. Infer if possible or state N/A]
-            - Archetype: [Choose ONE from the list below based on the player's position and play style]
-              ${playerPosition.includes('QB') ? `  - Backfield Creator (Improviser)
-              - Pure Runner (Scrambler)
-              - Dual Threat (Scrambler/Field General)
-              - Pocket Passer (Field General)` : ''}
-              ${playerPosition.includes('RB') || playerPosition.includes('FB') ? `  - Elusive Bruiser (Elusive/Power)
-              - North/South Blocker (Utility)
-              - East/East Playmaker (Elusive)
-              - Backfield Threat (Receiving)
-              - North/South Receiver (Receiving/Power)
-              - Contact Seeker (Power)` : ''}
-              ${playerPosition.includes('WR') ? `  - Speedster (Deep Threat)
-              - Elusive Route Runner
-              - Physical Route Runner
-              - Gritty Possession
-              - Contested Specialist
-              - Gadget (QB Hybrid)
-              - Route Artist` : ''}
-              ${playerPosition.includes('TE') ? `  - Vertical Threat (Deep Threat/Physical)
-              - Gritty Possession
-              - Physical Route Runner
-              - Possession
-              - Pure Blocker` : ''}
-              ${playerPosition.includes('OL') ? `  - Raw Strength (Power/Run)
-              - Well Rounded (Power/Pass)
-              - Pass Protector
-              - Agile` : ''}
-              ${playerPosition.includes('DL') || playerPosition.includes('DE') ? `  - Speed Rusher
-              - Edge Setter (Run Stopper)
-              - Power Rusher
-              - Physical Freak (Speed/Run)` : ''}
-              ${playerPosition.includes('DT') ? `  - GAP Specialist (Run Stopper)
-              - Physical Freak (Speed/Run)
-              - Power Rusher
-              - Speed Rusher` : ''}
-              ${playerPosition.includes('LB') ? `  - Lurker (Pass Coverage)
-              - Thumper (Field General)
-              - Signal Caller (Run Stopper)` : ''}
-              ${playerPosition.includes('CB') ? `  - Bump and Run (Man)
-              - Field (Slot)
-              - Zone (Zone)
-              - Boundary (Slot/Man)` : ''}
-              ${playerPosition.includes('S') ? `  - Coverage Specialist (Zone)
-              - Box Specialist (Run Support)
-              - Hybrid` : ''}
-            - Dealbreaker: [A hypothetical reason for transfer or leaving a program, e.g., Lack of playing time, Proximity to home, Coaching change, Academic struggles, NIL opportunities. State N/A if no obvious dealbreaker can be inferred.]
-
             ## ASSESSMENT ##
             Overall Player Quality: [Generate a score out of 100 (e.g., 92/100) or a descriptive term (e.g., Elite, Great, Good, Average) indicating their overall talent/impact for a player at their position. Make this accurate for known players like Joe Burrow, giving him a high score. For less prominent players like Davis Warren, give a lower, more realistic score.]
         `;
@@ -467,13 +415,14 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: "Server configuration error: OpenAI API key missing." }, { status: 500 });
         }
 
-        const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
+        // Initialize the OpenAI client
+        const openai = new OpenAI({ apiKey: OPENAI_API_KEY }); // Added this line
 
         const chatCompletion = await openai.chat.completions.create({
             model: 'gpt-4o', // Or 'gpt-3.5-turbo' if you prefer
             messages: [{ role: 'user', content: prompt }],
-            temperature: 0.7,
-            max_tokens: 1500,
+            temperature: 0.7, // Keep it somewhat creative but factual
+            max_tokens: 1500, // Increased max_tokens significantly to accommodate all 54 stats + categories
         });
 
         const aiResponseText = chatCompletion.choices[0].message.content;
@@ -490,13 +439,6 @@ export async function POST(req: NextRequest) {
         let aiOverview = "No AI overview available.";
         let aiRatings: { category: string; stats: { name: string; value: number }[] }[] = [];
         let playerQualityScore: number | null = null;
-        // NEW PARSED FIELDS
-        let playerClass: string = 'N/A';
-        let redshirted: boolean | null = null;
-        let highSchoolRating: string = 'N/A';
-        let archetype: string = 'N/A';
-        let dealbreaker: string = 'N/A';
-
 
         // Overview parsing
         const overviewMatch = aiResponseText.match(/## OVERVIEW ##\s*([\s\S]*?)(?=## RATINGS ##|$)/);
@@ -505,8 +447,7 @@ export async function POST(req: NextRequest) {
         }
 
         // Ratings parsing (more robust for categories and individual stats)
-        // Adjusted regex to stop before NEW "## ADDITIONAL PLAYER DETAILS ##" section
-        const ratingsSectionMatch = aiResponseText.match(/## RATINGS ##\s*([\s\S]*?)(?=## ADDITIONAL PLAYER DETAILS ##|$)/);
+        const ratingsSectionMatch = aiResponseText.match(/## RATINGS ##\s*([\s\S]*?)(?=## ASSESSMENT ##|$)/);
         if (ratingsSectionMatch && ratingsSectionMatch[1]) {
             const rawRatingsContent = ratingsSectionMatch[1].trim();
             const categoryRegex = /###\s*(.*?)\s*###\s*\n([\s\S]*?)(?=(?:###|$))/g;
@@ -531,41 +472,16 @@ export async function POST(req: NextRequest) {
             }
         }
 
-        // NEW: Additional Player Details parsing
-        const additionalDetailsMatch = aiResponseText.match(/## ADDITIONAL PLAYER DETAILS ##\s*([\s\S]*?)(?=## ASSESSMENT ##|$)/);
-        if (additionalDetailsMatch && additionalDetailsMatch[1]) {
-            const detailsContent = additionalDetailsMatch[1].trim();
-            const classMatch = detailsContent.match(/-\s*Class:\s*(.*)/i);
-            if (classMatch && classMatch[1]) playerClass = classMatch[1].trim();
-
-            const redshirtedMatch = detailsContent.match(/-\s*Redshirted:\s*(.*)/i);
-            if (redshirtedMatch && redshirtedMatch[1]) {
-                const val = redshirtedMatch[1].trim().toLowerCase();
-                if (val === 'yes') redshirted = true;
-                else if (val === 'no') redshirted = false;
-                else redshirted = null; // Uncertain or N/A
-            }
-
-            const hsRatingMatch = detailsContent.match(/-\s*High School Rating:\s*(.*)/i);
-            if (hsRatingMatch && hsRatingMatch[1]) highSchoolRating = hsRatingMatch[1].trim();
-
-            const archetypeMatch = detailsContent.match(/-\s*Archetype:\s*(.*)/i);
-            if (archetypeMatch && archetypeMatch[1]) archetype = archetypeMatch[1].trim();
-
-            const dealbreakerMatch = detailsContent.match(/-\s*Dealbreaker:\s*(.*)/i);
-            if (dealbreakerMatch && dealbreakerMatch[1]) dealbreaker = dealbreakerMatch[1].trim();
-        }
 
         // Quality Score parsing
-        const assessmentMatch = aiResponseText.match(/## ASSESSMENT ##\s*Overall Player Quality:\s*(.*?)(?=\n|$)/i);
+        const assessmentMatch = aiResponseText.match(/## ASSESSMENT ##\s*Overall Player Quality:\s*(\d+)/);
         if (assessmentMatch && assessmentMatch[1]) {
-            const scoreText = assessmentMatch[1].trim();
-            const numericScoreMatch = scoreText.match(/(\d+)\/100/);
-            if (numericScoreMatch && numericScoreMatch[1]) {
-                playerQualityScore = parseInt(numericScoreMatch[1], 10);
-            } else {
-                // Fallback for descriptive assessments
-                const assessmentText = scoreText.toLowerCase();
+            playerQualityScore = parseInt(assessmentMatch[1], 10);
+        } else {
+             // Fallback for descriptive assessments
+            const descriptiveScoreMatch = aiResponseText.match(/## ASSESSMENT ##\s*Overall Player Quality:\s*(.*?)(?=\n|$)/i);
+            if (descriptiveScoreMatch && descriptiveScoreMatch[1]) {
+                const assessmentText = descriptiveScoreMatch[1].toLowerCase();
                 if (assessmentText.includes("elite")) playerQualityScore = 95;
                 else if (assessmentText.includes("great") || assessmentText.includes("top-tier")) playerQualityScore = 85;
                 else if (assessmentText.includes("good") || assessmentText.includes("solid")) playerQualityScore = 75;
@@ -580,12 +496,6 @@ export async function POST(req: NextRequest) {
         console.log(`[AI Overview API] Parsed Overview:`, aiOverview);
         console.log(`[AI Overview API] Parsed Ratings:`, aiRatings);
         console.log(`[AI Overview API] Parsed Quality Score:`, playerQualityScore);
-        console.log(`[AI Overview API] Parsed Player Class:`, playerClass);
-        console.log(`[AI Overview API] Parsed Redshirted:`, redshirted);
-        console.log(`[AI Overview API] Parsed HS Rating:`, highSchoolRating);
-        console.log(`[AI Overview API] Parsed Archetype:`, archetype);
-        console.log(`[AI Overview API] Parsed Dealbreaker:`, dealbreaker);
-
 
         // --- Ability Assignment Logic (Moved directly into route.ts) ---
         const assignedAbilities: AssignedAbility[] = [];
@@ -594,7 +504,8 @@ export async function POST(req: NextRequest) {
         );
 
         if (playerQualityScore !== null) {
-            const numAbilitiesToAssign = Math.floor(Math.random() * 3) + 3; // Assign 3 to 5 abilities
+            // Changed to consistently assign 5 abilities for key players, aligning with reference
+            const numAbilitiesToAssign = 5;
 
             let baseTierIndex = 0; // Default to Bronze
             if (playerQualityScore >= 90) baseTierIndex = 4; // X-Factor (index 4)
@@ -628,12 +539,6 @@ export async function POST(req: NextRequest) {
             aiRatings, // Now an array of objects with category and stats
             assignedAbilities,
             playerQualityScore, // Include quality score in response if frontend needs it
-            // NEW FIELDS IN RESPONSE
-            playerClass,
-            redshirted,
-            highSchoolRating,
-            archetype,
-            dealbreaker,
         });
 
     } catch (error: any) {
@@ -650,6 +555,6 @@ export async function POST(req: NextRequest) {
             );
         } else {
             return NextResponse.json({ error: 'Internal Server Error', details: error.message || 'Unknown error' }, { status: 500 });
-        };
+        }
     }
 }
