@@ -533,12 +533,21 @@ export async function POST(req: NextRequest) {
         }
         console.log(`[AI Overview API] Assigned Abilities:`, assignedAbilities);
 
+        // --- New: Add redshirt, class, dealbreaker, archetype ---
+        const playerRedshirtStatus = getRedshirtStatus(player);
+        const playerClass = getPlayerClass(year);
+        const playerDealbreaker = getDealbreaker();
+        const playerArchetype = getArchetype(player, aiRatings);
 
         return NextResponse.json({
             aiOverview,
             aiRatings, // Now an array of objects with category and stats
             assignedAbilities,
             playerQualityScore, // Include quality score in response if frontend needs it
+            playerRedshirtStatus,
+            playerClass,
+            playerDealbreaker,
+            playerArchetype
         });
 
     } catch (error: any) {
@@ -557,4 +566,118 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Internal Server Error', details: error.message || 'Unknown error' }, { status: 500 });
         }
     }
+}
+
+// --- Dealbreakers and Archetypes ---
+const dealbreakers = [
+    "Injury Prone",
+    "Low Work Ethic",
+    "Disciplinary Issues",
+    "Poor Academic Standing",
+    "Off-Field Distractions",
+    "Coachability Concerns",
+    "Low Football IQ",
+    "Poor Attitude",
+    "Lack of Leadership",
+    "Inconsistent Performer"
+];
+
+function getPlayerClass(year: number): string {
+    // You can adjust this logic if you have more accurate data
+    switch (year) {
+        case 1: return "Freshman";
+        case 2: return "Sophomore";
+        case 3: return "Junior";
+        case 4: return "Senior";
+        default: return "Unknown";
+    }
+}
+
+function getRedshirtStatus(player: any): string {
+    // If you have a field for redshirt, use it. Otherwise, random for now.
+    // Example: player.redshirt === true ? "Redshirted" : "Not Redshirted"
+    if (player.redshirt !== undefined) {
+        return player.redshirt ? "Redshirted" : "Not Redshirted";
+    }
+    // Random fallback
+    return Math.random() < 0.2 ? "Redshirted" : "Not Redshirted";
+}
+
+function getDealbreaker(): string {
+    // Randomly assign a dealbreaker
+    return dealbreakers[Math.floor(Math.random() * dealbreakers.length)];
+}
+
+function getArchetype(player: any, aiRatings: any[]): string {
+    // Example logic: Use position and a few key stats to determine archetype
+    const pos = (player.position || '').toUpperCase();
+    // Helper to get stat value
+    function getStat(category: string, stat: string): number {
+        const cat = aiRatings.find((c: any) => c.category === category);
+        if (!cat) return 0;
+        const s = cat.stats.find((s: any) => s.name === stat);
+        return s ? s.value : 0;
+    }
+    if (pos === 'QB') {
+        const spd = getStat('General', 'Speed');
+        const thp = getStat('Quarterback', 'Throw Power');
+        const run = getStat('Quarterback', 'Throw on the Run');
+        if (spd > 80 && run > 75) return 'Dual Threat';
+        if (thp > 85 && run < 70) return 'Pocket Passer';
+        if (run > 85) return 'Improviser';
+        return 'Game Manager';
+    } else if (pos === 'RB' || pos === 'HB') {
+        const spd = getStat('General', 'Speed');
+        const btk = getStat('Ball Carrier', 'Break Tackle');
+        if (spd > 85 && btk > 80) return 'Power Back';
+        if (spd > 90) return 'Speed Back';
+        return 'Balanced Back';
+    } else if (pos === 'WR') {
+        const spd = getStat('General', 'Speed');
+        const cth = getStat('Receiver', 'Catching');
+        if (spd > 90) return 'Deep Threat';
+        if (cth > 85) return 'Possession Receiver';
+        return 'Slot Receiver';
+    } else if (pos === 'TE') {
+        const blk = getStat('Blocking', 'Run Block');
+        const cth = getStat('Receiver', 'Catching');
+        if (blk > 80) return 'Blocking TE';
+        if (cth > 80) return 'Receiving TE';
+        return 'Balanced TE';
+    } else if (pos === 'CB') {
+        const mcv = getStat('Coverage', 'Man Coverage');
+        const zcv = getStat('Coverage', 'Zone Coverage');
+        if (mcv > 85) return 'Lockdown Corner';
+        if (zcv > 85) return 'Zone Specialist';
+        return 'Nickel Corner';
+    } else if (pos === 'LB') {
+        const tkl = getStat('Defense', 'Tackle');
+        const pow = getStat('Defense', 'Hit Power');
+        if (pow > 85) return 'Enforcer';
+        if (tkl > 85) return 'Tackling LB';
+        return 'Coverage LB';
+    } else if (pos === 'S') {
+        const zcv = getStat('Coverage', 'Zone Coverage');
+        const mcv = getStat('Coverage', 'Man Coverage');
+        if (zcv > 85) return 'Free Safety';
+        if (mcv > 85) return 'Strong Safety';
+        return 'Hybrid Safety';
+    } else if (pos === 'OL') {
+        const pbk = getStat('Blocking', 'Pass Block');
+        const rbk = getStat('Blocking', 'Run Block');
+        if (pbk > 85) return 'Pass Protector';
+        if (rbk > 85) return 'Run Blocker';
+        return 'Balanced Lineman';
+    } else if (pos === 'DL') {
+        const pmv = getStat('Defense', 'Power Moves');
+        const fmv = getStat('Defense', 'Finesse Moves');
+        if (pmv > 85) return 'Power Rusher';
+        if (fmv > 85) return 'Speed Rusher';
+        return 'Run Stopper';
+    } else if (pos === 'K') {
+        return 'Kicker';
+    } else if (pos === 'P') {
+        return 'Punter';
+    }
+    return 'Athlete';
 }
