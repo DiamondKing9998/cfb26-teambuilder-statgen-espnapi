@@ -403,6 +403,10 @@ const CollegeFootballApp: React.FC = () => {
             const response = await fetch(url, {
                 headers: {
                     'Authorization': `Bearer ${CFBD_API_KEY}`,
+                    // Explicitly set cache-control headers to prevent browser caching of old responses
+                    'Cache-Control': 'no-cache, no-store, must-revalidate',
+                    'Pragma': 'no-cache', // For HTTP/1.0 backwards compatibility
+                    'Expires': '0',       // For HTTP/1.0 backwards compatibility
                 },
             });
 
@@ -430,7 +434,7 @@ const CollegeFootballApp: React.FC = () => {
         // This useEffect now primarily depends on `appliedFilters` and `isLoadingFilters`
         // It will trigger `fetchPlayers` when:
         // 1. `appliedFilters` changes (e.g., user submits a new search)
-        // 2. `isLoadingFilters` changes (e.g., initial dropdown options finish loading, and if initial filters are empty, it won't fetch players yet)
+        // 2. `isLoadingFilters` changes (e.g., initial dropdown options finish loading)
         fetchPlayers();
     }, [fetchPlayers, appliedFilters, isLoadingFilters]); // Removed players.length, playerError from dependencies
 
