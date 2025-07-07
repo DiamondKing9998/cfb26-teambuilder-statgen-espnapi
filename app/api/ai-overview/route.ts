@@ -1,9 +1,8 @@
 import { NextResponse } from 'next/server';
-import OpenAI from 'openai'; // Import the OpenAI library
+import OpenAI from 'openai';
 
 export async function POST(request: Request) {
     try {
-        // --- Receive player data and year from frontend PlayerCard ---
         const { player, year } = await request.json();
 
         if (!player || !player.name || !player.team || !year) {
@@ -12,14 +11,14 @@ export async function POST(request: Request) {
 
         const playerName = player.name || `${player.firstName || ''} ${player.lastName || ''}`.trim();
         const teamName = player.team;
-        const playerPosition = player.position ? player.position.toUpperCase() : 'N/A'; // Convert to uppercase for easier matching
+        const playerPosition = player.position ? player.position.toUpperCase() : 'N/A';
         const playerJersey = player.jersey ? `#${player.jersey}` : 'N/A';
         const playerHeight = player.height ? `${Math.floor(player.height / 12)}'${player.height % 12}"` : 'N/A';
         const playerWeight = player.weight ? `${player.weight} lbs` : 'N/A';
         const playerHometown = player.hometown || 'N/A';
 
         // --- CollegeFootballData.com API Call ---
-        const CFBD_API_KEY = process.env.CFBD_API_KEY; // Ensure this is set in Vercel
+        const CFBD_API_KEY = process.env.CFBD_API_KEY;
 
         if (!CFBD_API_KEY) {
             console.error("CFBD_API_KEY environment variable is not set.");
@@ -29,9 +28,11 @@ export async function POST(request: Request) {
         let cfbdStatsSummary = `Basic player info: Name: ${playerName}, Team: ${teamName}, Position: ${playerPosition}, Jersey: ${playerJersey}, Height: ${playerHeight}, Weight: ${playerWeight}, Hometown: ${playerHometown}.`;
         
         try {
-            const cfbdStatsUrl = `https://api.collegefootballdata.com/player/stats?year=${year}&team=${encodeURIComponent(teamName)}&player=${encodeURIComponent(playerName)}`;
+            // --- UPDATED CFBD API URL to /stats/player/season ---
+            // This endpoint provides season stats for ALL players on a given team in a given year.
+            const cfbdStatsUrl = `https://api.collegefootballdata.com/stats/player/season?year=${year}&team=${encodeURIComponent(teamName)}`;
             
-            console.log(`Attempting to fetch detailed stats from CFBD: ${cfbdStatsUrl}`);
+            console.log(`Attempting to fetch ALL season stats for ${teamName} in ${year} from CFBD: ${cfbdStatsUrl}`);
             const cfbdStatsResponse = await fetch(cfbdStatsUrl, {
                 headers: {
                     'Authorization': `Bearer ${CFBD_API_KEY}`,
@@ -40,20 +41,39 @@ export async function POST(request: Request) {
             });
 
             if (cfbdStatsResponse.ok) {
-                const statsData = await cfbdStatsResponse.json();
-                console.log("Raw CFBD stats data:", statsData);
+                const allSeasonStats = await cfbdStatsResponse.json();
+                console.log("Raw ALL season stats data from CFBD:", allSeasonStats);
 
-                if (statsData && statsData.length > 0) {
-                    // --- Improved Stat Extraction based on Position ---
+                // --- Find the specific player's stats from the returned list ---
+                // Prefer matching by player ID if available, otherwise by name.
+                const targetPlayerStatsEntry = allSeasonStats.find((entry: any) => {
+                    // Normalize names for comparison
+                    const entryPlayerName = (entry.player?.name || '').toLowerCase();
+                    const targetPlayerNameLower = playerName.toLowerCase();
+
+                    // Match by ID first (more reliable) or by name
+                    return (player.id && entry.player?.id === player.id) || 
+                           (entryPlayerName === targetPlayerNameLower);
+                });
+
+                let statsData: any[] = [];
+                if (targetPlayerStatsEntry && targetPlayerStatsEntry.stats) {
+                    statsData = targetPlayerStatsEntry.stats; // This is the array of stat objects for the target player
+                    console.log(`Found stats for ${playerName}:`, statsData);
+                } else {
+                    console.log(`No specific season stats entry found for ${playerName} in the team data.`);
+                }
+
+                // --- Proceed with stat extraction using the found statsData ---
+                if (statsData.length > 0) {
                     let specificStats: string[] = [];
-                    const statsMap = new Map<string, any>(); // Map for easier lookup: statName -> statObject
+                    const statsMap = new Map<string, any>(); 
 
-                    // Populate map for quick access
                     statsData.forEach((s: any) => {
                         statsMap.set(`${s.category}_${s.statName}`, s.statValue);
                     });
 
-                    // Define which stats to look for based on position
+                    // Define which stats to look for based on position (existing logic)
                     if (playerPosition.includes('QB')) {
                         specificStats.push(`Passing Yards: ${statsMap.get('passing_yards') || 'N/A'}`);
                         specificStats.push(`Passing TDs: ${statsMap.get('passing_tds') || 'N/A'}`);
@@ -64,7 +84,7 @@ export async function POST(request: Request) {
                             : 'N/A';
                         specificStats.push(`Completion %: ${completionPct}`);
                         specificStats.push(`Interceptions: ${statsMap.get('passing_interceptions') || 'N/A'}`);
-                        specificStats.push(`Rushing Yards (QB): ${statsMap.get('rushing_yards') || 'N/A'}`); // QBs can rush too
+                        specificStats.push(`Rushing Yards (QB): ${statsMap.get('rushing_yards') || 'N/A'}`);
                         specificStats.push(`Rushing TDs (QB): ${statsMap.get('rushing_tds') || 'N/A'}`);
                     } else if (playerPosition.includes('RB') || playerPosition.includes('FB')) {
                         specificStats.push(`Rushing Yards: ${statsMap.get('rushing_yards') || 'N/A'}`);
@@ -97,8 +117,6 @@ export async function POST(request: Request) {
                         specificStats.push(`Punt Yards: ${statsMap.get('punting_yards') || 'N/A'}`);
                         specificStats.push(`Punts: ${statsMap.get('punting_punts') || 'N/A'}`);
                     } else {
-                        // For other positions or if no specific stats are found
-                        // Fallback to a general summary of available stats
                         const availableStatNames = statsData.map((s: any) => `${s.statName}: ${s.statValue}`).join(', ');
                         if (availableStatNames) {
                             specificStats.push(`All available stats: ${availableStatNames}`);
@@ -108,7 +126,7 @@ export async function POST(request: Request) {
                     if (specificStats.length > 0) {
                         cfbdStatsSummary += `\nKey stats for ${year} season: ${specificStats.filter(s => !s.includes('N/A')).join(', ')}.`;
                     } else {
-                        cfbdStatsSummary += `\nNo specific statistical data found for ${playerName} in ${year} from CollegeFootballData.com.`;
+                        cfbdStatsSummary += `\nNo specific statistical data found for ${playerName} in ${year} from CollegeFootballData.com using the new endpoint.`;
                     }
                 } else {
                     cfbdStatsSummary += `\nNo specific statistical data found for ${playerName} in ${year} from CollegeFootballData.com.`;
@@ -123,15 +141,14 @@ export async function POST(request: Request) {
             cfbdStatsSummary += `\nError retrieving detailed stats from CollegeFootballData.com: ${cfbdError.message}.`;
         }
 
-        // --- OpenAI API Call ---
-        const OPENAI_API_KEY = process.env.OPENAI_API_KEY; // This should be set in Vercel
+        // --- OpenAI API Call (no changes here) ---
+        const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
         if (!OPENAI_API_KEY) {
             console.error("OPENAI_API_KEY environment variable is not set.");
             return NextResponse.json({ error: "Server configuration error: OpenAI API key missing." }, { status: 500 });
         }
 
-        // Initialize OpenAI client
         const openai = new OpenAI({
             apiKey: OPENAI_API_KEY,
         });
@@ -147,13 +164,13 @@ export async function POST(request: Request) {
 
         try {
             const completion = await openai.chat.completions.create({
-                model: "gpt-4o-mini", // Explicitly using the gpt-4o-mini model
+                model: "gpt-4o-mini",
                 messages: [
                     { role: "system", content: "You are a concise college football expert. Provide player overviews based on provided data. If data is limited, provide a general profile." },
                     { role: "user", content: prompt },
                 ],
-                max_tokens: 300, // Adjust as needed to control response length
-                temperature: 0.7, // Adjust creativity (0.0-1.0)
+                max_tokens: 300,
+                temperature: 0.7,
             });
 
             const aiOverviewText = completion.choices[0].message.content;
