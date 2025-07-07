@@ -9,7 +9,8 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Player data (name, team) and year are required.' }, { status: 400 });
         }
 
-        const playerName = player.name || `${player.firstName || ''} ${player.lastName || ''}`.trim();
+        // Trim player name to avoid issues with leading/trailing spaces from data source
+        const playerName = (player.name || `${player.firstName || ''} ${player.lastName || ''}`).trim();
         const teamName = player.team;
         const playerPosition = player.position ? player.position.toUpperCase() : 'N/A';
         const playerJersey = player.jersey ? `#${player.jersey}` : 'N/A';
@@ -28,7 +29,7 @@ export async function POST(request: Request) {
         let cfbdStatsSummary = `Basic player info: Name: ${playerName}, Team: ${teamName}, Position: ${playerPosition}, Jersey: ${playerJersey}, Height: ${playerHeight}, Weight: ${playerWeight}, Hometown: ${playerHometown}.`;
         
         try {
-            // --- UPDATED CFBD API URL to /stats/player/season ---
+            // Use /stats/player/season which gives all stats for a team in a year
             const cfbdStatsUrl = `https://api.collegefootballdata.com/stats/player/season?year=${year}&team=${encodeURIComponent(teamName)}`;
             
             console.log(`Attempting to fetch ALL season stats for ${teamName} in ${year} from CFBD: ${cfbdStatsUrl}`);
@@ -40,91 +41,87 @@ export async function POST(request: Request) {
             });
 
             if (cfbdStatsResponse.ok) {
-                const allSeasonStats = await cfbdStatsResponse.json();
-                console.log("Raw ALL season stats data from CFBD:", allSeasonStats);
+                const allTeamSeasonStats = await cfbdStatsResponse.json();
+                console.log("Raw ALL season stats data from CFBD:", allTeamSeasonStats);
 
-                // --- Find the specific player's stats from the returned list ---
-                const targetPlayerStatsEntry = allSeasonStats.find((entry: any) => {
-                    const entryPlayerName = (entry.player?.name || '').toLowerCase();
-                    const targetPlayerNameLower = playerName.toLowerCase();
+                // --- NEW LOGIC: Filter all stats to get only the target player's stats ---
+                const targetPlayerId = player.id; // Use player.id from frontend
+                const targetPlayerNameLower = playerName.toLowerCase();
 
-                    // Prefer matching by player ID if available, otherwise by name.
-                    return (player.id && entry.player?.id === player.id) || 
-                           (entryPlayerName === targetPlayerNameLower);
+                const playerSpecificStatsEntries = allTeamSeasonStats.filter((statEntry: any) => {
+                    const entryPlayerNameLower = (statEntry.player || '').toLowerCase().trim(); // Trim name from CFBD response
+                    const entryPlayerId = statEntry.playerId;
+
+                    // Match by player ID (more reliable) or by normalized player name
+                    return (targetPlayerId && entryPlayerId === targetPlayerId) || 
+                           (entryPlayerNameLower === targetPlayerNameLower);
                 });
 
-                // --- NEW CONSOLE.LOG FOR DEBUGGING ---
-                console.log("Target player stats entry found:", targetPlayerStatsEntry);
+                // --- NEW CONSOLE.LOG FOR DEBUGGING FILTERED ENTRIES ---
+                console.log("Player-specific filtered stat entries:", playerSpecificStatsEntries);
 
-                let statsData: any[] = [];
-                if (targetPlayerStatsEntry && targetPlayerStatsEntry.stats) {
-                    statsData = targetPlayerStatsEntry.stats; 
-                    // --- EXISTING CONSOLE.LOG ---
-                    console.log(`Found stats for ${playerName}:`, statsData); 
 
-                    // --- NEW CONSOLE.LOG FOR DEBUGGING ---
-                    console.log("Extracted statsData for player:", statsData);
-
-                } else {
-                    console.log(`No specific season stats entry found for ${playerName} in the team data.`);
-                }
-
-                // --- Proceed with stat extraction using the found statsData ---
-                if (statsData.length > 0) {
+                if (playerSpecificStatsEntries.length > 0) {
                     let specificStats: string[] = [];
+                    // Create statsMap from the filtered entries
                     const statsMap = new Map<string, any>(); 
 
-                    statsData.forEach((s: any) => {
-                        statsMap.set(`${s.category}_${s.statName}`, s.statValue);
+                    playerSpecificStatsEntries.forEach((s: any) => {
+                        // Key format: category_statType (e.g., 'passing_YDS', 'defensive_SACK')
+                        statsMap.set(`${s.category}_${s.statType}`, s.stat);
                     });
 
-                    // Define which stats to look for based on position (existing logic)
+                    // --- Updated Stat Extraction: Using CFBD's statType names (e.g., YDS, TD, ATT, SOLO) ---
                     if (playerPosition.includes('QB')) {
-                        specificStats.push(`Passing Yards: ${statsMap.get('passing_yards') || 'N/A'}`);
-                        specificStats.push(`Passing TDs: ${statsMap.get('passing_tds') || 'N/A'}`);
-                        specificStats.push(`Completions: ${statsMap.get('passing_completions') || 'N/A'}`);
-                        specificStats.push(`Attempts: ${statsMap.get('passing_attempts') || 'N/A'}`);
-                        const completionPct = statsMap.has('passing_completions') && statsMap.has('passing_attempts') && statsMap.get('passing_attempts') > 0
-                            ? ((statsMap.get('passing_completions') / statsMap.get('passing_attempts')) * 100).toFixed(1) + '%'
+                        specificStats.push(`Passing Yards: ${statsMap.get('passing_YDS') || 'N/A'}`);
+                        specificStats.push(`Passing TDs: ${statsMap.get('passing_TD') || 'N/A'}`);
+                        specificStats.push(`Completions: ${statsMap.get('passing_COMP') || 'N/A'}`);
+                        specificStats.push(`Attempts: ${statsMap.get('passing_ATT') || 'N/A'}`);
+                        const completionPct = statsMap.has('passing_COMP') && statsMap.has('passing_ATT') && parseFloat(statsMap.get('passing_ATT')) > 0
+                            ? ((parseFloat(statsMap.get('passing_COMP')) / parseFloat(statsMap.get('passing_ATT'))) * 100).toFixed(1) + '%'
                             : 'N/A';
                         specificStats.push(`Completion %: ${completionPct}`);
-                        specificStats.push(`Interceptions: ${statsMap.get('passing_interceptions') || 'N/A'}`);
-                        specificStats.push(`Rushing Yards (QB): ${statsMap.get('rushing_yards') || 'N/A'}`);
-                        specificStats.push(`Rushing TDs (QB): ${statsMap.get('rushing_tds') || 'N/A'}`);
+                        specificStats.push(`Interceptions: ${statsMap.get('passing_INT') || 'N/A'}`);
+                        specificStats.push(`Rushing Yards (QB): ${statsMap.get('rushing_YDS') || 'N/A'}`);
+                        specificStats.push(`Rushing TDs (QB): ${statsMap.get('rushing_TD') || 'N/A'}`);
                     } else if (playerPosition.includes('RB') || playerPosition.includes('FB')) {
-                        specificStats.push(`Rushing Yards: ${statsMap.get('rushing_yards') || 'N/A'}`);
-                        specificStats.push(`Rushing TDs: ${statsMap.get('rushing_tds') || 'N/A'}`);
-                        specificStats.push(`Carries: ${statsMap.get('rushing_attempts') || 'N/A'}`);
-                        specificStats.push(`Receptions: ${statsMap.get('receiving_receptions') || 'N/A'}`);
-                        specificStats.push(`Receiving Yards: ${statsMap.get('receiving_yards') || 'N/A'}`);
-                        specificStats.push(`Receiving TDs: ${statsMap.get('receiving_tds') || 'N/A'}`);
+                        specificStats.push(`Rushing Yards: ${statsMap.get('rushing_YDS') || 'N/A'}`);
+                        specificStats.push(`Rushing TDs: ${statsMap.get('rushing_TD') || 'N/A'}`);
+                        specificStats.push(`Carries: ${statsMap.get('rushing_CAR') || 'N/A'}`);
+                        specificStats.push(`Receptions: ${statsMap.get('receiving_REC') || 'N/A'}`);
+                        specificStats.push(`Receiving Yards: ${statsMap.get('receiving_YDS') || 'N/A'}`);
+                        specificStats.push(`Receiving TDs: ${statsMap.get('receiving_TD') || 'N/A'}`);
                     } else if (playerPosition.includes('WR') || playerPosition.includes('TE')) {
-                        specificStats.push(`Receptions: ${statsMap.get('receiving_receptions') || 'N/A'}`);
-                        specificStats.push(`Receiving Yards: ${statsMap.get('receiving_yards') || 'N/A'}`);
-                        specificStats.push(`Receiving TDs: ${statsMap.get('receiving_tds') || 'N/A'}`);
-                        specificStats.push(`Targets: ${statsMap.get('receiving_targets') || 'N/A'}`);
+                        specificStats.push(`Receptions: ${statsMap.get('receiving_REC') || 'N/A'}`);
+                        specificStats.push(`Receiving Yards: ${statsMap.get('receiving_YDS') || 'N/A'}`);
+                        specificStats.push(`Receiving TDs: ${statsMap.get('receiving_TD') || 'N/A'}`);
+                        specificStats.push(`Targets: ${statsMap.get('receiving_TAR') || 'N/A'}`);
                     } else if (playerPosition.includes('LB') || playerPosition.includes('DB') || playerPosition.includes('S') || playerPosition.includes('CB')) {
-                        specificStats.push(`Total Tackles: ${statsMap.get('defense_totalTackles') || 'N/A'}`);
-                        specificStats.push(`Sacks: ${statsMap.get('defense_sacks') || 'N/A'}`);
-                        specificStats.push(`Tackles for Loss: ${statsMap.get('defense_tacklesForLoss') || 'N/A'}`);
-                        specificStats.push(`Interceptions: ${statsMap.get('defense_interceptions') || 'N/A'}`);
-                        specificStats.push(`Pass Breakups: ${statsMap.get('defense_passBreakups') || 'N/A'}`);
-                        specificStats.push(`Forced Fumbles: ${statsMap.get('defense_forcedFumbles') || 'N/A'}`);
+                        specificStats.push(`Total Tackles: ${statsMap.get('defensive_TOT') || 'N/A'}`); // Often 'TOT' for total tackles
+                        specificStats.push(`Solo Tackles: ${statsMap.get('defensive_SOLO') || 'N/A'}`);
+                        specificStats.push(`Sacks: ${statsMap.get('defensive_SACK') || 'N/A'}`);
+                        specificStats.push(`Tackles for Loss: ${statsMap.get('defensive_TFL') || 'N/A'}`); // TFL is common statType
+                        specificStats.push(`Interceptions: ${statsMap.get('defensive_INT') || 'N/A'}`);
+                        specificStats.push(`Pass Breakups: ${statsMap.get('defensive_PD') || 'N/A'}`); // Pass Deflections is common
+                        specificStats.push(`Forced Fumbles: ${statsMap.get('defensive_FF') || 'N/A'}`); // Forced Fumbles
                     } else if (playerPosition.includes('DL') || playerPosition.includes('DT') || playerPosition.includes('DE')) {
-                        specificStats.push(`Total Tackles: ${statsMap.get('defense_totalTackles') || 'N/A'}`);
-                        specificStats.push(`Sacks: ${statsMap.get('defense_sacks') || 'N/A'}`);
-                        specificStats.push(`Tackles for Loss: ${statsMap.get('defense_tacklesForLoss') || 'N/A'}`);
-                        specificStats.push(`QB Hurries: ${statsMap.get('defense_quarterbackHurries') || 'N/A'}`);
+                        specificStats.push(`Total Tackles: ${statsMap.get('defensive_TOT') || 'N/A'}`);
+                        specificStats.push(`Solo Tackles: ${statsMap.get('defensive_SOLO') || 'N/A'}`);
+                        specificStats.push(`Sacks: ${statsMap.get('defensive_SACK') || 'N/A'}`);
+                        specificStats.push(`Tackles for Loss: ${statsMap.get('defensive_TFL') || 'N/A'}`);
+                        specificStats.push(`QB Hurries: ${statsMap.get('defensive_QB HUR') || 'N/A'}`); // Note: 'QB HUR' includes a space
                     } else if (playerPosition.includes('K') || playerPosition.includes('P')) { // Kicker/Punter
-                        specificStats.push(`Field Goals Made: ${statsMap.get('kicking_fgm') || 'N/A'}`);
-                        specificStats.push(`Field Goals Att: ${statsMap.get('kicking_fga') || 'N/A'}`);
-                        specificStats.push(`Extra Points Made: ${statsMap.get('kicking_pat') || 'N/A'}`);
-                        specificStats.push(`Punt Yards: ${statsMap.get('punting_yards') || 'N/A'}`);
-                        specificStats.push(`Punts: ${statsMap.get('punting_punts') || 'N/A'}`);
+                        specificStats.push(`Field Goals Made: ${statsMap.get('kicking_FGM') || 'N/A'}`);
+                        specificStats.push(`Field Goals Att: ${statsMap.get('kicking_FGA') || 'N/A'}`);
+                        specificStats.push(`Extra Points Made: ${statsMap.get('kicking_PAT') || 'N/A'}`);
+                        specificStats.push(`Punt Yards: ${statsMap.get('punting_YDS') || 'N/A'}`);
+                        specificStats.push(`Punts: ${statsMap.get('punting_PUNTS') || 'N/A'}`);
+                        specificStats.push(`Average Punt: ${statsMap.get('punting_AVG') || 'N/A'}`);
                     } else {
-                        const availableStatNames = statsData.map((s: any) => `${s.statName}: ${s.statValue}`).join(', ');
-                        if (availableStatNames) {
-                            specificStats.push(`All available stats: ${availableStatNames}`);
+                        // Fallback: list all available stats for the player if no specific position match
+                        const allPlayerStats = playerSpecificStatsEntries.map((s: any) => `${s.category} ${s.statType}: ${s.stat}`).join(', ');
+                        if (allPlayerStats) {
+                            specificStats.push(`All available stats: ${allPlayerStats}`);
                         }
                     }
 
