@@ -36,7 +36,8 @@ interface AssignedAbility {
 interface PlayerDetailsState {
     player: CfbdPlayer | null; // Player can be null initially or if not found
     aiOverview: string;
-    aiRatings: string[] | { category: string; stats: string }[]; // Updated: Allow array of strings OR array of objects
+    // Updated: Allow array of strings, or objects with category/stats, or objects with name/value
+    aiRatings: string[] | { category: string; stats: string }[] | { name: string; value: string }[];
     assignedAbilities: AssignedAbility[];
     loading: boolean;
     error: string | null;
@@ -309,20 +310,36 @@ export default function PlayerDetailPage() {
                         <>
                             <h2 className="text-xl sm:text-2xl font-semibold mt-6 mb-4 text-blue-400">EA CFB 26 Hypothetical Ratings</h2>
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-2 text-base sm:text-lg mb-8">
-                                {aiRatings.map((rating, index) => {
-                                    // Defensive check: If 'rating' is an object (unexpected but causes the error)
-                                    if (typeof rating === 'object' && rating !== null && 'category' in rating && 'stats' in rating) {
-                                        const r = rating as { category: string; stats: string }; // Type assertion for clarity
+                                {aiRatings.map((rating: any, index) => { // Using 'any' for flexibility
+                                    if (typeof rating === 'string') {
+                                        // Case 1: Rating is a plain string (e.g., "Speed: 85")
                                         return (
-                                            <p key={index} className="text-gray-300">
-                                                <strong>{r.category}:</strong> {r.stats}
-                                            </p>
+                                            <p key={index} className="text-gray-300">{rating}</p>
                                         );
+                                    } else if (typeof rating === 'object' && rating !== null) {
+                                        // Case 2: Rating is an object with 'category' and 'stats' (from previous fix)
+                                        if ('category' in rating && 'stats' in rating && typeof rating.category === 'string' && typeof rating.stats === 'string') {
+                                            return (
+                                                <p key={index} className="text-gray-300">
+                                                    <strong>{rating.category}:</strong> {rating.stats}
+                                                </p>
+                                            );
+                                        }
+                                        // Case 3: Rating is an object with 'name' and 'value' (from current error)
+                                        if ('name' in rating && 'value' in rating && typeof rating.name === 'string' && typeof rating.value === 'string') {
+                                            return (
+                                                <p key={index} className="text-gray-300">
+                                                    <strong>{rating.name}:</strong> {rating.value}
+                                                </p>
+                                            );
+                                        }
+                                        // If it's an object but doesn't match expected structures, log and don't render.
+                                        console.warn('Unexpected object structure encountered in aiRatings:', rating);
+                                        return null; // Prevents React error #31 for unhandled object types
                                     }
-                                    // If 'rating' is a string (the expected format from previous backend discussions)
-                                    return (
-                                        <p key={index} className="text-gray-300">{rating}</p>
-                                    );
+                                    // If it's neither a string nor a valid object type, don't render.
+                                    console.warn('Unexpected data type encountered in aiRatings:', rating);
+                                    return null;
                                 })}
                             </div>
                         </>
