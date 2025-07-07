@@ -1,7 +1,7 @@
 // src/app/api/ai-overview/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
-import OpenAI from 'openai'; // Added this import
+import OpenAI from 'openai';
 
 // Define interfaces for type safety
 interface CfbdPlayer {
@@ -23,7 +23,6 @@ interface AssignedAbility {
     description: string;
 }
 
-// Re-defining allAbilities and tiers as they were included in your provided original file
 const allAbilities = [
     // Quarterbacks
     { name: "Backfield Creator", positions: ["QB"], description: "Exceptional at creating plays from the backfield." },
@@ -298,7 +297,7 @@ export async function POST(req: NextRequest) {
         }
 
 
-        // Construct the detailed prompt for OpenAI
+        // Construct the detailed prompt for OpenAI - MODIFIED PROMPT
         const prompt = `
             You are an expert college football analyst for the new EA Sports College Football 26 video game.
             Your task is to analyze a player's real-world performance for the ${year} season and provide a detailed scout report for the game.
@@ -318,7 +317,8 @@ export async function POST(req: NextRequest) {
             Each section must be clearly demarcated by its header.
 
             ## OVERVIEW ##
-            Generate 2-3 detailed paragraphs summarizing the player's key attributes, play style, strengths, and weaknesses. Focus on how their real-world performance translates to in-game potential. Be descriptive and analytical.
+            Generate 2-3 detailed paragraphs summarizing the player's key attributes, play style, strengths, and weaknesses.
+            **Think outside the box**: Go beyond just listing stats. Focus on their on-field identity, how they uniquely impact games, and their narrative arc. Describe how their tangible and intangible skills manifest in game situations. Incorporate real-world stats (like tackles for loss, passing yards, forced fumbles) creatively into the narrative as evidence, rather than just listing them. For example, instead of "X tackles for loss", describe "His disruptive presence is evident in his consistent ability to penetrate the backfield, leading to multiple tackles for loss."
 
             ## RATINGS ##
             Provide hypothetical in-game ratings for the player for EA Sports College Football 26.
@@ -400,6 +400,14 @@ export async function POST(req: NextRequest) {
             - Return: [Value]
             - Long Snap: [Value]
 
+            ## ADDITIONAL PLAYER DETAILS ##
+            Provide the following additional details about the player based on the available information and general football knowledge.
+            - Class: [Freshman/Sophomore/Junior/Senior. Infer based on typical college career progression if direct info isn't available, or state N/A if impossible]
+            - Redshirted: [Yes/No/Uncertain]
+            - High School Rating: [e.g., 5-star, 4-star, 3-star, 2-star, Unrated. Infer if possible or state N/A]
+            - Archetype: [e.g., Pocket Passer QB, Power Back HB, Field General LB, Edge Rusher DL, Slot WR, Man Coverage CB, Pass Protector LT. Be specific to their play style.]
+            - Dealbreaker: [A hypothetical reason for transfer or leaving a program, e.g., Lack of playing time, Proximity to home, Coaching change, Academic struggles, NIL opportunities. State N/A if no obvious dealbreaker can be inferred.]
+
             ## ASSESSMENT ##
             Overall Player Quality: [Generate a score out of 100 (e.g., 92/100) or a descriptive term (e.g., Elite, Great, Good, Average) indicating their overall talent/impact for a player at their position. Make this accurate for known players like Joe Burrow, giving him a high score. For less prominent players like Davis Warren, give a lower, more realistic score.]
         `;
@@ -415,14 +423,13 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: "Server configuration error: OpenAI API key missing." }, { status: 500 });
         }
 
-        // Initialize the OpenAI client
-        const openai = new OpenAI({ apiKey: OPENAI_API_KEY }); // Added this line
+        const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
 
         const chatCompletion = await openai.chat.completions.create({
             model: 'gpt-4o', // Or 'gpt-3.5-turbo' if you prefer
             messages: [{ role: 'user', content: prompt }],
-            temperature: 0.7, // Keep it somewhat creative but factual
-            max_tokens: 1500, // Increased max_tokens significantly to accommodate all 54 stats + categories
+            temperature: 0.7,
+            max_tokens: 1500,
         });
 
         const aiResponseText = chatCompletion.choices[0].message.content;
@@ -439,6 +446,13 @@ export async function POST(req: NextRequest) {
         let aiOverview = "No AI overview available.";
         let aiRatings: { category: string; stats: { name: string; value: number }[] }[] = [];
         let playerQualityScore: number | null = null;
+        // NEW PARSED FIELDS
+        let playerClass: string = 'N/A';
+        let redshirted: boolean | null = null;
+        let highSchoolRating: string = 'N/A';
+        let archetype: string = 'N/A';
+        let dealbreaker: string = 'N/A';
+
 
         // Overview parsing
         const overviewMatch = aiResponseText.match(/## OVERVIEW ##\s*([\s\S]*?)(?=## RATINGS ##|$)/);
@@ -447,7 +461,7 @@ export async function POST(req: NextRequest) {
         }
 
         // Ratings parsing (more robust for categories and individual stats)
-        const ratingsSectionMatch = aiResponseText.match(/## RATINGS ##\s*([\s\S]*?)(?=## ASSESSMENT ##|$)/);
+        const ratingsSectionMatch = aiResponseText.match(/## RATINGS ##\s*([\s\S]*?)(?=## ADDITIONAL PLAYER DETAILS ##|$)/); // Adjusted regex to stop before new section
         if (ratingsSectionMatch && ratingsSectionMatch[1]) {
             const rawRatingsContent = ratingsSectionMatch[1].trim();
             const categoryRegex = /###\s*(.*?)\s*###\s*\n([\s\S]*?)(?=(?:###|$))/g;
@@ -472,16 +486,41 @@ export async function POST(req: NextRequest) {
             }
         }
 
+        // NEW: Additional Player Details parsing
+        const additionalDetailsMatch = aiResponseText.match(/## ADDITIONAL PLAYER DETAILS ##\s*([\s\S]*?)(?=## ASSESSMENT ##|$)/);
+        if (additionalDetailsMatch && additionalDetailsMatch[1]) {
+            const detailsContent = additionalDetailsMatch[1].trim();
+            const classMatch = detailsContent.match(/-\s*Class:\s*(.*)/i);
+            if (classMatch && classMatch[1]) playerClass = classMatch[1].trim();
+
+            const redshirtedMatch = detailsContent.match(/-\s*Redshirted:\s*(.*)/i);
+            if (redshirtedMatch && redshirtedMatch[1]) {
+                const val = redshirtedMatch[1].trim().toLowerCase();
+                if (val === 'yes') redshirted = true;
+                else if (val === 'no') redshirted = false;
+                else redshirted = null; // Uncertain or N/A
+            }
+
+            const hsRatingMatch = detailsContent.match(/-\s*High School Rating:\s*(.*)/i);
+            if (hsRatingMatch && hsRatingMatch[1]) highSchoolRating = hsRatingMatch[1].trim();
+
+            const archetypeMatch = detailsContent.match(/-\s*Archetype:\s*(.*)/i);
+            if (archetypeMatch && archetypeMatch[1]) archetype = archetypeMatch[1].trim();
+
+            const dealbreakerMatch = detailsContent.match(/-\s*Dealbreaker:\s*(.*)/i);
+            if (dealbreakerMatch && dealbreakerMatch[1]) dealbreaker = dealbreakerMatch[1].trim();
+        }
 
         // Quality Score parsing
-        const assessmentMatch = aiResponseText.match(/## ASSESSMENT ##\s*Quality Score:\s*(\d+)/);
+        const assessmentMatch = aiResponseText.match(/## ASSESSMENT ##\s*Overall Player Quality:\s*(.*?)(?=\n|$)/i);
         if (assessmentMatch && assessmentMatch[1]) {
-            playerQualityScore = parseInt(assessmentMatch[1], 10);
-        } else {
-             // Fallback for descriptive assessments
-            const descriptiveScoreMatch = aiResponseText.match(/## ASSESSMENT ##\s*Overall Player Quality:\s*(.*?)(?=\n|$)/i);
-            if (descriptiveScoreMatch && descriptiveScoreMatch[1]) {
-                const assessmentText = descriptiveScoreMatch[1].toLowerCase();
+            const scoreText = assessmentMatch[1].trim();
+            const numericScoreMatch = scoreText.match(/(\d+)\/100/);
+            if (numericScoreMatch && numericScoreMatch[1]) {
+                playerQualityScore = parseInt(numericScoreMatch[1], 10);
+            } else {
+                // Fallback for descriptive assessments
+                const assessmentText = scoreText.toLowerCase();
                 if (assessmentText.includes("elite")) playerQualityScore = 95;
                 else if (assessmentText.includes("great") || assessmentText.includes("top-tier")) playerQualityScore = 85;
                 else if (assessmentText.includes("good") || assessmentText.includes("solid")) playerQualityScore = 75;
@@ -496,6 +535,12 @@ export async function POST(req: NextRequest) {
         console.log(`[AI Overview API] Parsed Overview:`, aiOverview);
         console.log(`[AI Overview API] Parsed Ratings:`, aiRatings);
         console.log(`[AI Overview API] Parsed Quality Score:`, playerQualityScore);
+        console.log(`[AI Overview API] Parsed Player Class:`, playerClass);
+        console.log(`[AI Overview API] Parsed Redshirted:`, redshirted);
+        console.log(`[AI Overview API] Parsed HS Rating:`, highSchoolRating);
+        console.log(`[AI Overview API] Parsed Archetype:`, archetype);
+        console.log(`[AI Overview API] Parsed Dealbreaker:`, dealbreaker);
+
 
         // --- Ability Assignment Logic (Moved directly into route.ts) ---
         const assignedAbilities: AssignedAbility[] = [];
@@ -538,6 +583,12 @@ export async function POST(req: NextRequest) {
             aiRatings, // Now an array of objects with category and stats
             assignedAbilities,
             playerQualityScore, // Include quality score in response if frontend needs it
+            // NEW FIELDS IN RESPONSE
+            playerClass,
+            redshirted,
+            highSchoolRating,
+            archetype,
+            dealbreaker,
         });
 
     } catch (error: any) {
