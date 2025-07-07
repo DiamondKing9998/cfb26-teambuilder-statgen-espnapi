@@ -194,13 +194,9 @@ export default function PlayerDetailPage() {
     return (
         <div className="min-h-screen bg-gray-900 text-white p-4 sm:p-8">
             <div className="max-w-4xl mx-auto bg-gray-800 rounded-lg shadow-lg overflow-hidden">
-                {/* CHANGED: Banner background is now a radial gradient from dark gray to light gray */}
-                <div className="relative p-6 sm:p-8" style={{ background: `radial-gradient(circle at center, #111827, #E5E7EB)` }}>
-                    {/* KEPT: Text color is forced to white */}
-                    <Link href="/" className="absolute top-4 left-4 flex items-center text-sm sm:text-base !text-white hover:underline">
-                        <svg className="w-4 h-4 mr-1 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
-                        Back to Player Search
-                    </Link>
+                {/* CHANGED: Banner background is now a radial gradient from light gray to dark gray */}
+                <div className="relative p-6 sm:p-8" style={{ background: `radial-gradient(circle at center, #E5E7EB, #111827)` }}>
+                    {/* REMOVED: The top-left "Back to Player Search" link has been removed */}
                     <div className="text-center pt-10 sm:pt-12 pb-4">
                         {player.teamLogo && (
                             <Image
@@ -249,11 +245,11 @@ export default function PlayerDetailPage() {
                         <p className="mt-8 text-gray-400 italic">No hypothetical ratings available for this player.</p>
                     )}
 
-
+                    {/* KEPT: This is now the ONLY "Back to Player Search" link, and it's at the bottom */}
                     <div className="mt-8 text-center">
                         <Link
                             href="/"
-                            className="px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition duration-300"
+                            className="px-6 py-3 bg-blue-600 !text-white font-semibold rounded-lg hover:bg-blue-700 transition duration-300"
                         >
                             Back to Player Search
                         </Link>
