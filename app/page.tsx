@@ -496,4 +496,4 @@ const CollegeFootballApp: React.FC = () => {
     );
 };
 
-export default CollegeFootballApp;
+export default CollegeFootballApp; // final
