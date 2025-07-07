@@ -4,12 +4,15 @@ import { NextRequest, NextResponse } from 'next/server';
 
 // IMPORTANT: Never hardcode your API key directly in client-side code for production.
 // For server-side API routes, it's safe to use process.env
-const CFBD_API_KEY = process.env.CFBD_API_KEY; // We'll set this up in .env.local
+const CFBD_API_KEY = process.env.CFBD_API_KEY;
 
 const CFBD_BASE_URL = 'https://api.collegefootballdata.com';
 
-// Ensure 'export' is present here
 export async function GET(request: NextRequest) {
+    // This console.log will appear in your terminal where you run 'npm run dev'
+    // It's crucial for debugging if the environment variable is being loaded correctly.
+    console.log("CFBD_API_KEY from environment:", CFBD_API_KEY ? "Loaded" : "Undefined/Missing");
+
     // Parse query parameters from the client-side request to your proxy
     const { searchParams } = new URL(request.url);
 
