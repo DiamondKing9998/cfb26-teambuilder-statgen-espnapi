@@ -7,23 +7,21 @@ import './globals.css';
 
 // --- Interfaces for CollegeFootballData.com API ---
 
-// UPDATED: Based on the /player/search endpoint response
 interface CfbdPlayer {
-    id: string; // Changed from number to string based on sample data
-    team: string; // e.g., "Michigan"
-    name: string; // Full name, e.g., "Aidan Hutchinson"
-    firstName: string; // e.g., "Aidan"
-    lastName: string;  // e.g., "Hutchinson"
-    weight: number | null; // e.g., 269
-    height: number | null; // e.g., 78 (inches)
-    jersey: number | null; // e.g., 97
-    position: string | null; // e.g., "DL"
-    hometown: string | null; // e.g., "Plymouth"
-    teamColor: string | null; // e.g., "#00274c"
-    teamColorSecondary: string | null; // e.g., "#ffcb05"
+    id: string;
+    team: string;
+    name: string;
+    firstName: string;
+    lastName: string;
+    weight: number | null;
+    height: number | null;
+    jersey: number | null;
+    position: string | null;
+    hometown: string | null;
+    teamColor: string | null;
+    teamColorSecondary: string | null;
 }
 
-// NEW INTERFACE: Added CfbdTeam definition for the teams API response
 interface CfbdTeam {
     id: number;
     school: string;
@@ -34,7 +32,7 @@ interface CfbdTeam {
     alt_name3: string | null;
     conference: string | null;
     division: string | null;
-    classification: string | null; // e.g., "FBS", "FCS"
+    classification: string | null;
     color: string | null;
     alt_color: string | null;
     logos: string[] | null;
@@ -73,17 +71,17 @@ interface FilterSidebarProps {
 
 interface PlayerCardProps {
     player: CfbdPlayer;
-    searchYear: string; // Added to display the year from the search filter
+    searchYear: string;
 }
 
 interface PlayerResultsProps {
     players: CfbdPlayer[];
     isLoadingPlayers: boolean;
     error: string | null;
-    currentSearchYear: string; // Added to pass down to PlayerCard
+    currentSearchYear: string;
 }
 
-// --- PlayerCard Component (UPDATED: Hometown and Colors Removed) ---
+// --- PlayerCard Component (no changes from previous update) ---
 const PlayerCard: React.FC<PlayerCardProps> = ({ player, searchYear }) => {
     const displayName = player.name || `${player.firstName || ''} ${player.lastName || ''}`.trim() || 'N/A Name';
 
@@ -95,20 +93,11 @@ const PlayerCard: React.FC<PlayerCardProps> = ({ player, searchYear }) => {
             {player.height && player.weight && (
                 <p>Height: {Math.floor(player.height / 12)}'{player.height % 12}" | Weight: {player.weight} lbs</p>
             )}
-            {/* REMOVED: {player.hometown && <p>Hometown: {player.hometown}</p>} */}
-            {/* REMOVED: {player.teamColor && (
-                <div style={{ display: 'flex', marginTop: '5px', gap: '5px', justifyContent: 'center' }}>
-                    <div style={{ width: '20px', height: '20px', backgroundColor: player.teamColor, border: '1px solid #ddd' }} title="Primary Team Color"></div>
-                    {player.teamColorSecondary && (
-                        <div style={{ width: '20px', height: '20px', backgroundColor: player.teamColorSecondary, border: '1px solid #ddd' }} title="Secondary Team Color"></div>
-                    )}
-                </div>
-            )} */}
         </div>
     );
 };
 
-// --- PlayerResults Component (no changes needed) ---
+// --- PlayerResults Component (no changes from previous update) ---
 const PlayerResults: React.FC<PlayerResultsProps> = ({ players, isLoadingPlayers, error, currentSearchYear }) => {
     if (isLoadingPlayers) {
         return (
@@ -132,7 +121,6 @@ const PlayerResults: React.FC<PlayerResultsProps> = ({ players, isLoadingPlayers
             <div className="player-grid">
                 {players.length > 0 ? (
                     players.map((player) => (
-                        // Pass currentSearchYear to PlayerCard
                         <PlayerCard key={player.id} player={player} searchYear={currentSearchYear} />
                     ))
                 ) : (
@@ -143,7 +131,7 @@ const PlayerResults: React.FC<PlayerResultsProps> = ({ players, isLoadingPlayers
     );
 };
 
-// --- FilterSidebar Component (no changes needed) ---
+// --- FilterSidebar Component (no changes from previous update) ---
 const FilterSidebar: React.FC<FilterSidebarProps> = ({
     onApplyFilters,
     colleges,
@@ -258,7 +246,7 @@ const FilterSidebar: React.FC<FilterSidebarProps> = ({
 };
 
 
-// --- Main App Component (no changes needed) ---
+// --- Main App Component ---
 const CollegeFootballApp: React.FC = () => {
     const [appliedFilters, setAppliedFilters] = useState({
         college: '',
@@ -278,12 +266,10 @@ const CollegeFootballApp: React.FC = () => {
 
     const [collegeNameToIdMap, setCollegeNameToIdMap] = useState<Map<string, number>>(new Map());
 
-    // Keeping these here for the filter options fetch which still hits CFBD directly (client-side)
-    const CFBD_API_KEY = 'YOUR_ACTUAL_API_KEY'; // Make sure to use your actual API key here for filter options
-    const CFBD_BASE_URL = 'https://api.collegefootballdata.com';
+    // REMOVED: const CFBD_API_KEY = 'YOUR_ACTUAL_API_KEY'; // This is now removed as it's handled by the proxy
+    // REMOVED: const CFBD_BASE_URL = 'https://api.collegefootballdata.com'; // No longer needed here for direct calls
 
-
-    // 1. Fetch data for filter dropdowns (runs once on mount)
+    // 1. Fetch data for filter dropdowns (runs once on mount) - NOW USES PROXY!
     useEffect(() => {
         const fetchFilterOptions = async () => {
             setIsLoadingFilters(true);
@@ -299,24 +285,21 @@ const CollegeFootballApp: React.FC = () => {
                 }
                 setApiYears(generatedYears);
 
-                // --- Fetch Teams from CFBD API (FBS & FCS) ---
+                // --- Fetch Teams from CFBD API via Proxy ---
                 const currentYearForTeams = '2024';
+                const teamsProxyUrl = `/api/cfbd-proxy?target=teams&year=${currentYearForTeams}`;
 
-                console.log(`Fetching teams for year: ${currentYearForTeams}`);
-                const teamsResponse = await fetch(`${CFBD_BASE_URL}/teams?year=${currentYearForTeams}`, {
-                    headers: {
-                        'Authorization': `Bearer ${CFBD_API_KEY}`,
-                    },
-                });
+                console.log(`Fetching teams for year: ${currentYearForTeams} via proxy: ${teamsProxyUrl}`);
+                const teamsResponse = await fetch(teamsProxyUrl); // No headers needed here; proxy handles them
 
                 if (!teamsResponse.ok) {
                     const errorBody = await teamsResponse.text();
-                    console.error(`CFBD API Error fetching teams (${currentYearForTeams}):`, teamsResponse.status, teamsResponse.statusText, errorBody);
-                    throw new Error(`Failed to load college teams from CFBD API for ${currentYearForTeams}. Status: ${teamsResponse.status}.`);
+                    console.error(`Error from proxy when fetching teams: ${teamsResponse.status} ${teamsResponse.statusText}. Details:`, errorBody);
+                    throw new Error(`Proxy error fetching teams: ${teamsResponse.status} ${teamsResponse.statusText}. Details: ${errorBody}`);
                 }
 
                 const teamsData: CfbdTeam[] = await teamsResponse.json();
-                console.log("Raw teamsData from API (for filters):", teamsData);
+                console.log("Raw teamsData from API (for filters) via proxy:", teamsData);
 
                 const filteredTeams = teamsData.filter(
                     (team) => {
@@ -347,16 +330,16 @@ const CollegeFootballApp: React.FC = () => {
 
             } catch (error: any) {
                 console.error('Error in fetchFilterOptions:', error);
-                setPlayerError(`Failed to load initial filter options: ${error.message || 'Unknown error'}. Please check your API key and network connection.`);
+                setPlayerError(`Failed to load initial filter options: ${error.message || 'Unknown error'}.`);
             } finally {
                 setIsLoadingFilters(false);
             }
         };
 
         fetchFilterOptions();
-    }, [CFBD_API_KEY, CFBD_BASE_URL]);
+    }, []); // Dependencies are empty now as CFBD_API_KEY/BASE_URL are no longer directly used here.
 
-    // 2. Fetch players based on applied filters (uses the proxy)
+    // 2. Fetch players based on applied filters - NOW USES PROXY WITH 'players' TARGET!
     const fetchPlayers = useCallback(async () => {
         setIsLoadingPlayers(true);
         setPlayerError(null);
@@ -370,28 +353,25 @@ const CollegeFootballApp: React.FC = () => {
 
         try {
             const queryParams = new URLSearchParams();
+            // Add 'target=players' to indicate the proxy should hit the player search endpoint
+            queryParams.append('target', 'players');
+            
             const seasonToQuery = appliedFilters.year || (apiYears.length > 0 ? apiYears[0] : '2024');
             queryParams.append('year', seasonToQuery);
             if (appliedFilters.college) {
                 queryParams.append('team', appliedFilters.college);
             }
             if (appliedFilters.position) {
-                // The /player/search endpoint might not support position directly
-                // You might need to filter by position client-side or check CFBD docs for another endpoint
-                // For now, it will be sent, but might be ignored by CFBD API
                 queryParams.append('position', appliedFilters.position);
             }
             if (appliedFilters.playerName) {
-                // The /player/search endpoint expects 'searchTerm' for player name
-                // Our client-side page.tsx sends it as 'search', so proxy maps 'search' to 'searchTerm'
                 queryParams.append('search', appliedFilters.playerName);
             }
-
 
             const url = `/api/cfbd-proxy?${queryParams.toString()}`;
             console.log("Fetching players via proxy URL:", url);
 
-            const response = await fetch(url); // No headers needed here; proxy handles them
+            const response = await fetch(url);
 
             if (!response.ok) {
                 const errorBody = await response.text();
@@ -452,7 +432,7 @@ const CollegeFootballApp: React.FC = () => {
                     players={players}
                     isLoadingPlayers={isLoadingPlayers}
                     error={playerError}
-                    currentSearchYear={appliedFilters.year} // Pass the year from filters
+                    currentSearchYear={appliedFilters.year}
                 />
             </div>
 

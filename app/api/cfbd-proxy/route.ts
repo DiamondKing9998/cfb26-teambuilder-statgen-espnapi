@@ -15,69 +15,74 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
+    const targetEndpoint = searchParams.get('target'); // e.g., 'players' or 'teams'
 
-    // Extract parameters from client-side request
-    const year = searchParams.get('year');
-    const team = searchParams.get('team');
-    const position = searchParams.get('position'); // Note: /player/search might not support position directly
-    const playerName = searchParams.get('search'); // This was 'search' from page.tsx
-
-    // Construct query parameters for the CFBD API
+    let cfbdApiUrl = '';
     const cfbdQueryParams = new URLSearchParams();
 
-    // Use the correct parameter name for player search: 'searchTerm'
-    if (playerName) {
-        cfbdQueryParams.append('searchTerm', playerName);
+    // Determine which CFBD API endpoint to call based on the 'target' parameter
+    if (targetEndpoint === 'players') {
+        // Logic for fetching players (from previous steps)
+        const year = searchParams.get('year');
+        const team = searchParams.get('team');
+        const playerName = searchParams.get('search'); // 'search' from client maps to 'searchTerm' for CFBD
+
+        if (playerName) {
+            cfbdQueryParams.append('searchTerm', playerName);
+        } else {
+            cfbdQueryParams.append('searchTerm', ' '); // Default to space for broad search
+        }
+        if (year) cfbdQueryParams.append('year', year);
+        if (team) cfbdQueryParams.append('team', team);
+        if (!year) cfbdQueryParams.append('year', '2024'); // Default year for players
+
+        cfbdApiUrl = `${CFBD_BASE_URL}/player/search?${cfbdQueryParams.toString()}`;
+
+    } else if (targetEndpoint === 'teams') {
+        // NEW LOGIC: For fetching teams for the filter sidebar
+        const year = searchParams.get('year'); // Get the year for teams, typically '2024' for current teams
+
+        if (year) {
+            cfbdQueryParams.append('year', year);
+        } else {
+            cfbdQueryParams.append('year', '2024'); // Default year for teams if not provided
+        }
+
+        cfbdApiUrl = `${CFBD_BASE_URL}/teams?${cfbdQueryParams.toString()}`;
+
     } else {
-        // If no player name, provide a default empty search term or handle as per API's requirement
-        // The Swagger UI example had '%20' for empty search, which is just a space
-        cfbdQueryParams.append('searchTerm', ' ');
+        // If no valid target is specified
+        return NextResponse.json({ error: "Invalid API target specified. Use 'players' or 'teams'." }, { status: 400 });
     }
-
-    if (year) cfbdQueryParams.append('year', year);
-    if (team) cfbdQueryParams.append('team', team);
-
-    // Note: The /player/search endpoint might not directly filter by 'position'.
-    // If you need position filtering, you might have to fetch all players for the team/year
-    // and then filter by position on your server-side after getting the results.
-    // For now, we'll omit sending 'position' to this specific endpoint.
-    // If it *does* support it, you can add: if (position) cfbdQueryParams.append('position', position);
-
-    // Ensure year is always present (CFBD API requires it for this endpoint too)
-    if (!year) {
-        cfbdQueryParams.append('year', '2024'); // Default year if not provided by client
-    }
-
-    // --- IMPORTANT CHANGE: Use the /player/search endpoint ---
-    const cfbdApiUrl = `${CFBD_BASE_URL}/player/search?${cfbdQueryParams.toString()}`;
 
     try {
-        console.log("Proxying request to CFBD URL:", cfbdApiUrl);
+        console.log(`Proxying request for target '${targetEndpoint}' to CFBD URL:`, cfbdApiUrl);
         const cfbdResponse = await fetch(cfbdApiUrl, {
             method: 'GET',
             headers: {
                 'Authorization': `Bearer ${CFBD_API_KEY}`,
                 'Accept': 'application/json',
-                'User-Agent': 'YourAppName/1.0 (CFBD API Proxy)'
+                'User-Agent': `YourAppName/1.0 (CFBD API Proxy - Target: ${targetEndpoint})` // More specific User-Agent
             },
         });
 
         if (!cfbdResponse.ok) {
             const errorText = await cfbdResponse.text();
-            console.error(`CFBD API returned ${cfbdResponse.status} from proxy. Raw response:`, errorText);
+            console.error(`CFBD API returned ${cfbdResponse.status} from proxy for target '${targetEndpoint}'. Raw response:`, errorText);
             return NextResponse.json(
-                { error: `CFBD API error: ${cfbdResponse.statusText}`, details: errorText },
+                { error: `CFBD API error for '${targetEndpoint}': ${cfbdResponse.statusText}`, details: errorText },
                 { status: cfbdResponse.status }
             );
         }
 
         const data = await cfbdResponse.json();
+        console.log(`Data received from CFBD API for target '${targetEndpoint}':`, JSON.stringify(data, null, 2));
         return NextResponse.json(data);
     } catch (error: any) {
         console.error("Proxy fetch error during CFBD call:", error);
         return NextResponse.json(
             {
-                error: "Failed to fetch from CFBD API via proxy.",
+                error: `Failed to fetch from CFBD API via proxy for target '${targetEndpoint}'.`,
                 details: error.message,
                 cfbdApiUrl: cfbdApiUrl
             },
