@@ -3,28 +3,27 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
-import './globals.css';
 import Link from 'next/link';
-// import { useRouter } from 'next/navigation'; // Not strictly needed here, Link handles it
+// Import the CSS Module
+import playerCardStyles from './styles/PlayerCard.module.css'; // Corrected import path
 
 // --- Interfaces for CollegeFootballData.com API ---
 
 interface CfbdPlayer {
-    id: string; // Changed from number to string based on sample data
-    team: string; // e.g., "Michigan"
-    name: string; // Full name, e.g., "Aidan Hutchinson"
-    firstName: string; // e.g., "Aidan"
-    lastName: string;  // e.g., "Hutchinson"
-    weight: number | null; // e.g., 269
-    height: number | null; // e.g., 78 (inches)
-    jersey: number | null; // e.g., 97
-    position: string | null; // e.g., "DL"
-    hometown: string | null; // e.g., "Plymouth"
-    teamColor: string | null; // e.g., "#00274c"
-    teamColorSecondary: string | null; // e.g., "#ffcb05"
+    id: string;
+    team: string;
+    name: string;
+    firstName: string;
+    lastName: string;
+    weight: number | null;
+    height: number | null;
+    jersey: number | null;
+    position: string | null;
+    hometown: string | null;
+    teamColor: string | null;
+    teamColorSecondary: string | null;
 }
 
-// NEW INTERFACE: Added CfbdTeam definition for the teams API response
 interface CfbdTeam {
     id: number;
     school: string;
@@ -35,7 +34,7 @@ interface CfbdTeam {
     alt_name3: string | null;
     conference: string | null;
     division: string | null;
-    classification: string | null; // e.g., "FBS", "FCS"
+    classification: string | null;
     color: string | null;
     alt_color: string | null;
     logos: string[] | null;
@@ -74,30 +73,28 @@ interface FilterSidebarProps {
 
 interface PlayerCardProps {
     player: CfbdPlayer;
-    searchYear: string; // Added to display the year from the search filter
+    searchYear: string;
 }
 
 interface PlayerResultsProps {
     players: CfbdPlayer[];
     isLoadingPlayers: boolean;
     error: string | null;
-    currentSearchYear: string; // Added to pass down to PlayerCard
+    currentSearchYear: string;
 }
 
-// --- PlayerCard Component (UPDATED for CSS and navigation) ---
+// --- PlayerCard Component (UPDATED to use CSS Modules) ---
 const PlayerCard: React.FC<PlayerCardProps> = ({ player, searchYear }) => {
     const displayName = player.name || `${player.firstName || ''} ${player.lastName || ''}`.trim() || 'N/A Name';
-
-    // Encode the player object for safe URL passing
     const encodedPlayer = encodeURIComponent(JSON.stringify(player));
 
     return (
-        // Link wraps a div with the styling, ensuring CSS applies correctly
         <Link
             href={`/player/${player.id}?player=${encodedPlayer}&year=${searchYear}`}
-            // No className here directly on Link, it wraps the styled div
+            className={playerCardStyles.playerCardLink} // Optional: if you need link-specific styling
         >
-            <div className="player-card"> {/* Apply styling here */}
+            {/* Apply the CSS Module class to the div */}
+            <div className={playerCardStyles.playerCard}>
                 <h4>{displayName}</h4>
                 <p>{player.team || 'N/A Team'} | {player.position || 'N/A Pos'} | {searchYear || 'N/A Season'}</p>
                 {player.jersey && <p>Jersey: #{player.jersey}</p>}
@@ -110,34 +107,35 @@ const PlayerCard: React.FC<PlayerCardProps> = ({ player, searchYear }) => {
 };
 
 
-// --- PlayerResults Component (no changes needed) ---
+// --- PlayerResults Component (UPDATED to use CSS Modules for grid) ---
 const PlayerResults: React.FC<PlayerResultsProps> = ({ players, isLoadingPlayers, error, currentSearchYear }) => {
     if (isLoadingPlayers) {
         return (
-            <main className="player-results">
-                <div className="loading-message">Loading players...</div>
+            <main className="flex-1 p-6 flex items-center justify-center bg-gray-900 text-white">
+                <div className="text-xl">Loading players...</div>
             </main>
         );
     }
 
     if (error) {
         return (
-            <main className="player-results">
-                <div className="error-message">Error fetching players: {error}</div>
+            <main className="flex-1 p-6 flex items-center justify-center bg-gray-900 text-red-500">
+                <div className="text-xl">Error fetching players: {error}</div>
             </main>
         );
     }
 
     return (
-        <main className="player-results">
-            <h2>College Football Player Profiles</h2>
-            <div className="player-grid">
+        <main className="flex-1 bg-gray-900 text-white p-6"> {/* Added padding directly here */}
+            <h2 className="text-3xl font-bold text-center mb-6 text-blue-400">College Football Player Profiles</h2>
+            {/* Use the CSS Module class for the grid */}
+            <div className={playerCardStyles.playerGrid}>
                 {players.length > 0 ? (
                     players.map((player) => (
                         <PlayerCard key={player.id} player={player} searchYear={currentSearchYear} />
                     ))
                 ) : (
-                    <p style={{ textAlign: 'center', gridColumn: '1 / -1' }}>No College Football players found matching your criteria. Try adjusting your filters.</p>
+                    <p className="text-center text-gray-400" style={{ gridColumn: '1 / -1' }}>No College Football players found matching your criteria. Try adjusting your filters.</p>
                 )}
             </div>
         </main>
@@ -196,16 +194,22 @@ const FilterSidebar: React.FC<FilterSidebarProps> = ({
     };
 
     return (
-        <aside className="filter-sidebar">
-            <h2>College Football Player Filters</h2>
-            <form onSubmit={handleSubmit} className="filter-form">
+        <aside className="w-full md:w-64 bg-gray-800 p-6 shadow-lg flex-shrink-0">
+            <h2 className="text-2xl font-bold mb-6 text-blue-400">College Football Player Filters</h2>
+            <form onSubmit={handleSubmit} className="space-y-4">
                 {isLoadingFilters ? (
-                    <div className="loading-spinner">Loading filters...</div>
+                    <div className="flex justify-center items-center h-24">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                    </div>
                 ) : (
                     <>
                         <div className="filter-group">
-                            <h3>Season (Year)</h3>
-                            <select value={yearValue} onChange={(e) => setYearValue(e.target.value)}>
+                            <h3 className="text-lg font-semibold mb-2 text-gray-200">Season (Year)</h3>
+                            <select
+                                value={yearValue}
+                                onChange={(e) => setYearValue(e.target.value)}
+                                className="w-full p-2 rounded bg-gray-700 border border-gray-600 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            >
                                 <option value="">All Years</option>
                                 {years.map((year) => (
                                     <option key={year} value={year}>{year}</option>
@@ -214,8 +218,12 @@ const FilterSidebar: React.FC<FilterSidebarProps> = ({
                         </div>
 
                         <div className="filter-group">
-                            <h3>College Team</h3>
-                            <select value={collegeValue} onChange={(e) => setCollegeValue(e.target.value)}>
+                            <h3 className="text-lg font-semibold mb-2 text-gray-200">College Team</h3>
+                            <select
+                                value={collegeValue}
+                                onChange={(e) => setCollegeValue(e.target.value)}
+                                className="w-full p-2 rounded bg-gray-700 border border-gray-600 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            >
                                 <option value="">All Colleges</option>
                                 {colleges.length > 0 ? (
                                     colleges.map((college) => (
@@ -228,8 +236,12 @@ const FilterSidebar: React.FC<FilterSidebarProps> = ({
                         </div>
 
                         <div className="filter-group">
-                            <h3>Position</h3>
-                            <select value={positionValue} onChange={(e) => setPositionValue(e.target.value)}>
+                            <h3 className="text-lg font-semibold mb-2 text-gray-200">Position</h3>
+                            <select
+                                value={positionValue}
+                                onChange={(e) => setPositionValue(e.target.value)}
+                                className="w-full p-2 rounded bg-gray-700 border border-gray-600 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            >
                                 <option value="">All Positions</option>
                                 {positions.map((pos) => (
                                     <option key={pos} value={pos}>{pos}</option>
@@ -238,18 +250,19 @@ const FilterSidebar: React.FC<FilterSidebarProps> = ({
                         </div>
 
                         <div className="filter-group">
-                            <h3>Player Name</h3>
+                            <h3 className="text-lg font-semibold mb-2 text-gray-200">Player Name</h3>
                             <input
                                 type="text"
                                 placeholder="First or Last Name"
                                 value={playerNameValue}
                                 onChange={(e) => setPlayerNameValue(e.target.value)}
+                                className="w-full p-2 rounded bg-gray-700 border border-gray-600 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                             />
                         </div>
 
-                        <div className="button-group">
-                            <button type="submit" className="submit-button">Search Players</button>
-                            <button type="button" className="reset-button" onClick={handleReset}>Reset Filters</button>
+                        <div className="flex flex-col space-y-3 pt-4">
+                            <button type="submit" className="w-full py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition duration-300">Search Players</button>
+                            <button type="button" className="w-full py-2 bg-gray-600 text-white font-semibold rounded-lg hover:bg-gray-700 transition duration-300" onClick={handleReset}>Reset Filters</button>
                         </div>
                     </>
                 )}
@@ -259,7 +272,7 @@ const FilterSidebar: React.FC<FilterSidebarProps> = ({
 };
 
 
-// --- Main App Component (no changes needed) ---
+// --- Main App Component (Updated with flex layout) ---
 const CollegeFootballApp: React.FC = () => {
     const [appliedFilters, setAppliedFilters] = useState({
         college: '',
@@ -301,7 +314,7 @@ const CollegeFootballApp: React.FC = () => {
                 const teamsProxyUrl = `/api/cfbd-proxy?target=teams&year=${currentYearForTeams}`;
 
                 console.log(`Fetching teams for year: ${currentYearForTeams} via proxy: ${teamsProxyUrl}`);
-                const teamsResponse = await fetch(teamsProxyUrl); // No headers needed here; proxy handles them
+                const teamsResponse = await fetch(teamsProxyUrl);
 
                 if (!teamsResponse.ok) {
                     const errorBody = await teamsResponse.text();
@@ -419,13 +432,14 @@ const CollegeFootballApp: React.FC = () => {
     }, []);
 
     return (
-        <div className="App">
-            <header>
-                <h1>College Football Player Search (CFBD API)</h1>
-                <p>Find college players by team, season, position, or name.</p>
+        <div className="min-h-screen flex flex-col bg-gray-900 text-white"> {/* Updated main container */}
+            <header className="bg-gray-800 text-white p-6 shadow-md text-center">
+                <h1 className="text-4xl font-extrabold mb-2 text-blue-400">CFB26 Teambuilder</h1>
+                <p className="text-xl text-gray-300">College Football Player Search (CFBD API)</p>
+                <p className="text-md text-gray-400 mt-2">Find college players by team, season, position, or name.</p>
             </header>
 
-            <div className="main-container">
+            <div className="flex flex-col md:flex-row flex-1"> {/* Main content area: sidebar and results */}
                 <FilterSidebar
                     onApplyFilters={handleApplyFilters}
                     colleges={apiColleges}
@@ -446,7 +460,7 @@ const CollegeFootballApp: React.FC = () => {
                 />
             </div>
 
-            <footer>
+            <footer className="bg-gray-800 text-gray-400 p-4 text-center text-sm shadow-inner">
                 <p>&copy; 2025 College Football Player Database POC</p>
             </footer>
         </div>
