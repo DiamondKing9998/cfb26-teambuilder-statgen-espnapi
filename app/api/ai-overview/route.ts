@@ -160,7 +160,38 @@ export async function POST(request: Request) {
         Here's the available information:
         ${cfbdStatsSummary}
         
-        If detailed statistics were not provided (indicated by 'N/A' or general phrasing), mention that and provide a general overview based on common knowledge about college football player roles and potential. Focus on their general profile if specific stats are absent. Keep it professional and informative.`;
+        Additionally, based on the player's real-world stats, position, and general college football knowledge, generate a list of hypothetical in-game ratings for them for a game like EA Sports College Football 26.
+        For each rating, provide a numerical value between 50 and 100. Focus on categories relevant to their position.
+        
+        Example format:
+        EA CFB 26 Hypothetical Ratings:
+        - Speed (SPD): [Rating]
+        - Strength (STR): [Rating]
+        - Agility (AGI): [Rating]
+        - Awareness (AWR): [Rating]
+        - Play Recognition (PRC): [Rating]
+        - Tackle (TKL): [Rating]
+        - Block Shedding (BKS): [Rating]
+        - Pass Rush (PRS): [Rating]
+        - Man Coverage (MCV): [Rating]
+        - Zone Coverage (ZCV): [Rating]
+        - Catching (CTH): [Rating]
+        - Route Running (RTE): [Rating]
+        - Carrying (CAR): [Rating]
+        - Break Tackle (BTK): [Rating]
+        - Pass Accuracy (PAC): [Rating]
+        - Throw Power (THP): [Rating]
+        - Elusiveness (ELU): [Rating]
+        - Kick Power (KPW): [Rating]
+        - Kick Accuracy (KAC): [Rating]
+        - Punt Power (PPW): [Rating]
+        - Punt Accuracy (PAC): [Rating]
+        - Stamina (STA): [Rating]
+        - Durability (DUR): [Rating]
+        - Special Teams (ST): [Rating]
+        - Overall (OVR): [Rating]
+
+        If specific stats were not provided, provide a general overview based on common knowledge about college football player roles and potential. Keep it professional and informative.`;
 
         console.log("Sending prompt to OpenAI API...");
 
@@ -168,10 +199,10 @@ export async function POST(request: Request) {
             const completion = await openai.chat.completions.create({
                 model: "gpt-4o-mini",
                 messages: [
-                    { role: "system", content: "You are a concise college football expert. Provide player overviews based on provided data. If data is limited, provide a general profile." },
+                    { role: "system", content: "You are a concise college football expert. Provide player overviews and hypothetical in-game ratings based on provided data. If data is limited, provide a general profile and infer ratings based on role." },
                     { role: "user", content: prompt },
                 ],
-                max_tokens: 300,
+                max_tokens: 500, // Increased max_tokens to accommodate ratings
                 temperature: 0.7,
             });
 
