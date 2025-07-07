@@ -1,123 +1,127 @@
-// src/app/api/ai-overview/route.ts
+import { NextResponse } from 'next/server';
 
-import { NextRequest, NextResponse } from 'next/server';
-import { GoogleGenerativeAI } from '@google/generative-ai';
-
-// Load API keys from environment variables
-const CFBD_API_KEY = process.env.CFBD_API_KEY;
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-
-const genAI = new GoogleGenerativeAI(GEMINI_API_KEY || '');
-
-export async function POST(request: NextRequest) {
-    console.log("AI Overview proxy route hit.");
-
-    if (!CFBD_API_KEY) {
-        console.error("CRITICAL ERROR: CFBD_API_KEY is not defined in the environment.");
-        return NextResponse.json({ error: "Server configuration error: CFBD API key missing." }, { status: 500 });
-    }
-    if (!GEMINI_API_KEY) {
-        console.error("CRITICAL ERROR: GEMINI_API_KEY is not defined in the environment.");
-        return NextResponse.json({ error: "Server configuration error: Gemini API key missing." }, { status: 500 });
-    }
-
+export async function POST(request: Request) {
     try {
+        // --- Receive player data and year from frontend PlayerCard ---
         const { player, year } = await request.json();
 
-        if (!player || !year || !player.id || !player.name || !player.team) {
-            return NextResponse.json({ error: "Missing required player data (id, name, team) or year in request body." }, { status: 400 });
+        if (!player || !player.name || !player.team || !year) {
+            return NextResponse.json({ error: 'Player data (name, team) and year are required.' }, { status: 400 });
         }
 
-        // --- Step 1: Fetch year-specific stats from CollegeFootballData.com API ---
-        const cfbdStatsUrl = `https://api.collegefootballdata.com/player/seasonstats?year=${year}&playerId=${player.id}`;
-        console.log(`Attempting to fetch player season stats from CFBD: ${cfbdStatsUrl}`);
+        const playerName = player.name || `${player.firstName || ''} ${player.lastName || ''}`.trim();
+        const teamName = player.team;
+        const playerPosition = player.position || 'N/A';
+        const playerJersey = player.jersey ? `#${player.jersey}` : 'N/A';
+        const playerHeight = player.height ? `${Math.floor(player.height / 12)}'${player.height % 12}"` : 'N/A';
+        const playerWeight = player.weight ? `${player.weight} lbs` : 'N/A';
+        const playerHometown = player.hometown || 'N/A';
 
-        let playerStats: any[] = [];
-        let cfbdRawResponseText: string | null = null;
+        // --- CollegeFootballData.com API Call ---
+        // This part is modified to retrieve player stats for the specific year,
+        // which can then be fed to the AI.
+        const CFBD_API_KEY = process.env.CFBD_API_KEY; // Ensure this is set in Vercel
 
+        if (!CFBD_API_KEY) {
+            console.error("CFBD_API_KEY environment variable is not set.");
+            return NextResponse.json({ error: "Server configuration error: College Football Data API key missing." }, { status: 500 });
+        }
+
+        let cfbdStatsSummary = `Basic player info: Name: ${playerName}, Team: ${teamName}, Position: ${playerPosition}, Jersey: ${playerJersey}, Height: ${playerHeight}, Weight: ${playerWeight}, Hometown: ${playerHometown}.`;
+        
         try {
-            const cfbdResponse = await fetch(cfbdStatsUrl, {
+            // Attempt to get detailed player stats for the specified year.
+            // This endpoint might need adjustment based on CFBD's actual stats API.
+            // A common one is /player/season/stats or /player/season/usage
+            const cfbdStatsUrl = `https://api.collegefootballdata.com/player/stats?year=${year}&team=${encodeURIComponent(teamName)}&player=${encodeURIComponent(playerName)}`;
+            
+            console.log(`Attempting to fetch detailed stats from CFBD: ${cfbdStatsUrl}`);
+            const cfbdStatsResponse = await fetch(cfbdStatsUrl, {
                 headers: {
                     'Authorization': `Bearer ${CFBD_API_KEY}`,
-                    'Accept': 'application/json',
-                    'User-Agent': `YourAppName/1.0 (CFBD AI Stats Fetch)`
-                },
+                    'Accept': 'application/json'
+                }
             });
 
-            cfbdRawResponseText = await cfbdResponse.text();
-            console.log(`DEBUG: CFBD Response Status: ${cfbdResponse.status}, OK: ${cfbdResponse.ok}`);
-            console.log(`DEBUG: CFBD Raw Response Text (first 500 chars): ${cfbdRawResponseText.substring(0, 500)}`);
+            if (cfbdStatsResponse.ok) {
+                const statsData = await cfbdStatsResponse.json();
+                console.log("Raw CFBD stats data:", statsData);
 
-            if (cfbdResponse.ok) {
-                try {
-                    playerStats = JSON.parse(cfbdRawResponseText);
-                    console.log("Player stats fetched and parsed successfully.");
-                } catch (jsonParseError: any) {
-                    console.error(`ERROR: CFBD response was OK (${cfbdResponse.status}), but failed to parse JSON. JSON parse error:`, jsonParseError);
-                    console.error(`Raw CFBD Response that failed JSON parsing:`, cfbdRawResponseText);
-                    playerStats = [];
+                if (statsData && statsData.length > 0) {
+                    // This is a basic way to summarize stats. You might want to refine this
+                    // to pick specific, relevant statistics.
+                    const relevantStats = statsData.map((s: any) => `${s.statName}: ${s.statValue}`).join(', ');
+                    cfbdStatsSummary += `\nDetailed stats for ${year} season: ${relevantStats}.`;
+                } else {
+                    cfbdStatsSummary += `\nNo specific statistical data found for ${playerName} in ${year} from CollegeFootballData.com.`;
                 }
             } else {
-                console.error(`ERROR: CFBD API returned non-OK status ${cfbdResponse.status} (${cfbdResponse.statusText}).`);
-                console.error(`Raw CFBD Response that caused non-OK status:`, cfbdRawResponseText);
-                playerStats = [];
+                const errorText = await cfbdStatsResponse.text();
+                console.warn(`CFBD stats API returned non-OK status ${cfbdStatsResponse.status}: ${errorText}`);
+                cfbdStatsSummary += `\nCould not retrieve detailed stats from CollegeFootballData.com (Status: ${cfbdStatsResponse.status}).`;
             }
-        } catch (fetchOrOtherError: any) {
-            console.error(`CRITICAL FETCH ERROR: Failed to make a request to CFBD API. Details:`, fetchOrOtherError);
-            console.error(`CFBD URL attempted: ${cfbdStatsUrl}`);
-            playerStats = [];
+        } catch (cfbdError: any) {
+            console.error("Error fetching detailed stats from CollegeFootballData.com:", cfbdError);
+            cfbdStatsSummary += `\nError retrieving detailed stats from CollegeFootballData.com: ${cfbdError.message}.`;
         }
 
-        // --- Step 2: Construct AI Prompt ---
-        let prompt = `Generate a concise, engaging overview for a college football player based on the provided details and their performance for the specific ${year} season. This overview should be suitable for a video game roster editor like EA Sports College Football 26 Teambuilder, focusing on key accomplishments and relevant statistics from the ${year} season only. Do not include career totals unless explicitly stated for that year.
-        
-        Player Details:
-        Name: ${player.name}
-        Team: ${player.team}
-        Position: ${player.position || 'N/A'}
-        Weight: ${player.weight ? player.weight + ' lbs' : 'N/A'}
-        Height: ${player.height ? Math.floor(player.height / 12) + "'" + (player.height % 12) + '"' : 'N/A'}
-        Jersey: #${player.jersey || 'N/A'}
-        Hometown: ${player.hometown || 'N/A'}
-        `;
+        // --- DeepSeek API Call ---
+        const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY; // Ensure this is set in Vercel!
 
-        if (playerStats && playerStats.length > 0) {
-            prompt += `\n\n${year} Season Statistics (Categorized):\n`;
-            playerStats.forEach((statEntry: any) => {
-                prompt += `\n- ${statEntry.category}: `;
-                const stats = Object.keys(statEntry)
-                    .filter(key => 
-                        key !== 'category' && 
-                        key !== 'playerId' && 
-                        key !== 'team' && 
-                        key !== 'year' && 
-                        statEntry[key] !== null
-                    ) 
-                    .map(key => `${key}: ${statEntry[key]}`);
-                prompt += stats.join(', ');
-            });
-        } else {
-            prompt += `\n\nNo detailed statistics found for the ${year} season. Please provide a general overview based on player details, position, and potential impact.`;
+        if (!DEEPSEEK_API_KEY) {
+            console.error("DEEPSEEK_API_KEY environment variable is not set.");
+            return NextResponse.json({ error: "Server configuration error: DeepSeek API key missing." }, { status: 500 });
         }
+
+        // --- THESE ARE PLACEHOLDERS ---
+        // You MUST find the exact API URL and model name from DeepSeek's official documentation.
+        const DEEPSEEK_MODEL = "deepseek-chat"; // Example: deepseek-chat, deepseek-coder
+        const DEEPSEEK_API_URL = "https://api.deepseek.com/chat/completions"; // Example: https://api.deepseek.com/chat/completions
+
+        const prompt = `Generate a concise, 2-3 paragraph college football player overview for ${playerName} from ${teamName} for the ${year} season. 
         
-        prompt += `\n\nEnsure the language is dynamic and highlights the player's impact and potential in a video game context. Keep the overview concise, around 100-150 words.`;
+        Here's the available information:
+        ${cfbdStatsSummary}
+        
+        If detailed statistics were not provided, mention that and provide a general overview based on common knowledge about college football player roles and potential. Focus on their general profile if specific stats are absent. Keep it professional and informative.`;
 
+        console.log("Sending prompt to DeepSeek API...");
 
-        // --- Step 3: Call Google Gemini API ---
-        console.log("Sending prompt to Google Gemini API...");
-        // Use gemini-1.0-pro for text-only generation
-        const model = genAI.getGenerativeModel({ model: 'gemini-1.0-pro'}); // <-- IMPORTANT CHANGE HERE!
+        const deepseekResponse = await fetch(DEEPSEEK_API_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
+            },
+            body: JSON.stringify({
+                model: DEEPSEEK_MODEL,
+                messages: [
+                    { role: "system", content: "You are a concise college football expert. Provide player overviews based on provided data. If data is limited, provide a general profile." },
+                    { role: "user", content: prompt },
+                ],
+                max_tokens: 300, // Adjust as needed to control response length
+                temperature: 0.7, // Adjust creativity (0.0-1.0)
+            }),
+        });
 
-        const result = await model.generateContent(prompt);
-        const response = await result.response;
-        const aiOverviewText = response.text();
+        if (!deepseekResponse.ok) {
+            const errorBody = await deepseekResponse.text(); // Get raw error response for debugging
+            console.error(`DeepSeek API returned non-OK status ${deepseekResponse.status}: ${errorBody}`);
+            return NextResponse.json({ 
+                error: `Failed to get overview from DeepSeek API (Status: ${deepseekResponse.status}).`,
+                details: errorBody // Include raw error for debugging
+            }, { status: deepseekResponse.status });
+        }
+
+        const deepseekData = await deepseekResponse.json();
+        const aiOverviewText = deepseekData.choices?.[0]?.message?.content;
 
         if (!aiOverviewText) {
-            console.error("Gemini did not generate any content.");
-            return NextResponse.json({ error: "AI (Gemini) did not generate an overview. Try again." }, { status: 500 });
+            console.error("DeepSeek did not generate any content or unexpected response format:", deepseekData);
+            return NextResponse.json({ error: "AI (DeepSeek) did not generate an overview. Try again." }, { status: 500 });
         }
 
-        console.log("AI Overview generated successfully by Gemini.");
+        console.log("AI Overview generated successfully by DeepSeek.");
         return NextResponse.json({ overview: aiOverviewText });
 
     } catch (outerError: any) {
