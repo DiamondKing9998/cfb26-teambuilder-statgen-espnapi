@@ -169,7 +169,7 @@ export async function POST(request: NextRequest) {
             console.log(`Attempting to fetch ALL season stats for ${teamName} in ${year} from CFBD: ${cfbdStatsUrl}`);
             const cfbdStatsResponse = await fetch(cfbdStatsUrl, {
                 headers: {
-                    'Authorization': `Bearer ${CFBD_API_KEY}`, // CORRECTED LINE HERE
+                    'Authorization': `Bearer ${CFBD_API_KEY}`,
                     'Accept': 'application/json'
                 }
             });
@@ -179,14 +179,15 @@ export async function POST(request: NextRequest) {
                 console.log("Raw ALL season stats data from CFBD:", allTeamSeasonStats);
 
                 const targetPlayerId = player.id;
-                const targetPlayerNameLower = playerName.toLowerCase();
+                const targetPlayerNameLower = playerName.toLowerCase().trim(); // Ensure trimming for comparison
 
                 const playerSpecificStatsEntries = allTeamSeasonStats.filter((statEntry: any) => {
                     const entryPlayerNameLower = (statEntry.player || '').toLowerCase().trim();
                     const entryPlayerId = statEntry.playerId;
 
+                    // Match by ID if available, otherwise by name
                     return (targetPlayerId && entryPlayerId === targetPlayerId) ||
-                        (entryPlayerNameLower === targetPlayerNameLower);
+                           (entryPlayerNameLower === targetPlayerNameLower);
                 });
 
                 console.log("Player-specific filtered stat entries:", playerSpecificStatsEntries);
@@ -199,6 +200,7 @@ export async function POST(request: NextRequest) {
                         statsMap.set(`${s.category}_${s.statType}`, s.stat);
                     });
 
+                    // Add more detailed stats based on position if available
                     if (playerPosition.includes('QB')) {
                         specificStats.push(`Passing Yards: ${statsMap.get('passing_YDS') || 'N/A'}`);
                         specificStats.push(`Passing TDs: ${statsMap.get('passing_TD') || 'N/A'}`);
@@ -280,48 +282,85 @@ export async function POST(request: NextRequest) {
             apiKey: OPENAI_API_KEY,
         });
 
-        // --- UPDATED PROMPT WITH NEW ## ASSESSMENT ## SECTION ---
-        const prompt = `Generate a concise college football player overview for ${playerName} from ${teamName} for the ${year} season. Follow the exact structure below, using the specified delimiters.
+        // --- START OF UPDATED PROMPT ---
+        const prompt = `Generate a concise college football player overview for ${playerName} from ${teamName} (${playerPosition}) for the ${year} season. Then, generate hypothetical in-game ratings for them for a game like EA Sports College Football 26, for ALL specified categories. Finally, provide an overall player quality assessment.
 
-        ## OVERVIEW ##
-        [Generate 2-3 paragraphs for the player overview here. If detailed statistics were not provided (indicated by 'N/A' or general phrasing), mention that and provide a general overview based on common knowledge about college football player roles and potential. Focus on their general profile if specific stats are absent. Keep it professional and informative.]
+Follow the exact structure below, using the specified delimiters.
 
-        ## RATINGS ##
-        [Based on the player's real-world stats, position, and general college football knowledge, generate a list of hypothetical in-game ratings for them for a game like EA Sports College Football 26. For each rating, provide a numerical value between 50 and 100. Focus on categories relevant to their position. Use the exact format below, one rating per line.]
+## OVERVIEW ##
+[Generate 2-3 detailed paragraphs for the player overview here. If detailed statistics were not provided (indicated by 'N/A' or general phrasing), mention that and provide a general overview based on common knowledge about college football player roles and potential. Focus on their general profile if specific stats are absent. Keep it professional and informative.]
 
-        EA CFB 26 Hypothetical Ratings:
-        - Speed (SPD): [Rating]
-        - Strength (STR): [Rating]
-        - Agility (AGI): [Rating]
-        - Awareness (AWR): [Rating]
-        - Play Recognition (PRC): [Rating]
-        - Tackle (TKL): [Rating]
-        - Block Shedding (BKS): [Rating]
-        - Pass Rush (PRS): [Rating]
-        - Man Coverage (MCV): [Rating]
-        - Zone Coverage (ZCV): [Rating]
-        - Catching (CTH): [Rating]
-        - Route Running (RTE): [Rating]
-        - Carrying (CAR): [Rating]
-        - Break Tackle (BTK): [Rating]
-        - Pass Accuracy (PAC): [Rating]
-        - Throw Power (THP): [Rating]
-        - Elusiveness (ELU): [Rating]
-        - Kick Power (KPW): [Rating]
-        - Kick Accuracy (KAC): [Rating]
-        - Punt Power (PPW): [Rating]
-        - Punt Accuracy (PAC): [Rating]
-        - Stamina (STA): [Rating]
-        - Durability (DUR): [Rating]
-        - Special Teams (ST): [Rating]
-        - Overall (OVR): [Rating]
+## RATINGS ##
+[Based on the player's real-world stats, position, and general college football knowledge, generate a list of hypothetical in-game ratings for them for a game like EA Sports College Football 26.
+Important rules for ratings:
+1.  **Be Realistic:** Most players will have many average or low ratings, especially in areas not relevant to their position. For example, a defensive lineman will have very low Throw Power, and an offensive lineman will have very low Man Coverage. A player's rating in a given stat should be proportional to their real-world ability and relevance for their position.
+2.  **Position Relevance:** Assign higher ratings (relative to other players at their position) to stats crucial for the player's primary position. Assign very low ratings (e.g., 0-30) to stats that are generally not applicable or extremely minor for their position.
+3.  **No Overall Rating from this section:** Do NOT calculate or provide an "Overall" rating within this list. The overall assessment is in the next section.
+4.  **Format:** List each stat on a new line, starting with a hyphen, like '- Stat Name: Value (0-99)'.
 
-        ## ASSESSMENT ##
-        Overall Player Quality: [Generate a score out of 100 (e.g., 92/100) or a descriptive term (e.g., Elite, Great, Good, Average) indicating their overall talent/impact for a player at their position. Make this accurate for known players like Joe Burrow, giving him a high score. For less prominent players like Davis Warren, give a lower, more realistic score.]
+EA CFB 26 Hypothetical Ratings:
+- Speed: [Value]
+- Strength: [Value]
+- Agility: [Value]
+- Acceleration: [Value]
+- Awareness: [Value]
+- Break Tackle: [Value]
+- Trucking: [Value]
+- Change of Direction: [Value]
+- Ball Carrier Vision: [Value]
+- Stiff Arm: [Value]
+- Spin Move: [Value]
+- Juke Move: [Value]
+- Carrying: [Value]
+- Catching: [Value]
+- Short Route Run: [Value]
+- Medium Route Run: [Value]
+- Deep Route Run: [Value]
+- Catch in Traffic: [Value]
+- Spectacular Catch: [Value]
+- Release: [Value]
+- Jumping: [Value]
+- Throw Power: [Value]
+- Short Throw Accuracy: [Value]
+- Medium Throw Accuracy: [Value]
+- Deep Throw Accuracy: [Value]
+- Throw on the Run: [Value]
+- Throw Under Pressure: [Value]
+- Break Sack: [Value]
+- Play Action: [Value]
+- Tackle: [Value]
+- Hit Power: [Value]
+- Power Moves: [Value]
+- Finesse Moves: [Value]
+- Block Shedding: [Value]
+- Pursuit: [Value]
+- Play Recognition: [Value]
+- Man Coverage: [Value]
+- Zone Coverage: [Value]
+- Long Snap: [Value]
+- Press: [Value]
+- Pass Block: [Value]
+- Pass Block Power: [Value]
+- Pass Block Finesse: [Value]
+- Run Block: [Value]
+- Run Block Power: [Value]
+- Run Block Finesse: [Value]
+- Lead Block: [Value]
+- Impact Blocking: [Value]
+- Kick Power: [Value]
+- Kick Accuracy: [Value]
+- Return: [Value]
+- Stamina: [Value]
+- Injury: [Value]
+- Toughness: [Value]
 
-        Available information for AI:
-        ${cfbdStatsSummary}
-        `;
+## ASSESSMENT ##
+Overall Player Quality: [Generate a score out of 100 (e.g., 92/100) or a descriptive term (e.g., Elite, Great, Good, Average) indicating their overall talent/impact for a player at their position. Make this accurate for known players like Joe Burrow, giving him a high score. For less prominent players like Davis Warren, give a lower, more realistic score.]
+
+Available information for AI:
+${cfbdStatsSummary}
+`;
+        // --- END OF UPDATED PROMPT ---
 
         console.log("Sending prompt to OpenAI API...");
 
@@ -329,10 +368,10 @@ export async function POST(request: NextRequest) {
             const completion = await openai.chat.completions.create({
                 model: "gpt-4o-mini", // Or your preferred model like "gpt-4"
                 messages: [
-                    { role: "system", content: "You are a concise college football expert. Generate player overviews, hypothetical in-game ratings, and an overall player quality assessment. Always follow the specified output format with ## OVERVIEW ##, ## RATINGS ##, and ## ASSESSMENT ## delimiters. If data is limited, provide a general profile and infer ratings based on role." },
+                    { role: "system", content: "You are a concise college football expert. Generate player overviews, hypothetical in-game ratings for ALL specified categories, and an overall player quality assessment. Always follow the specified output format with ## OVERVIEW ##, ## RATINGS ##, and ## ASSESSMENT ## delimiters. If data is limited, provide a general profile and infer ratings based on role." },
                     { role: "user", content: prompt },
                 ],
-                max_tokens: 800, // Increased max_tokens slightly to accommodate new section
+                max_tokens: 1200, // Increased max_tokens significantly to accommodate all 54 stats
                 temperature: 0.7,
             });
 
@@ -344,34 +383,40 @@ export async function POST(request: NextRequest) {
             }
 
             console.log("AI Overview generated successfully by OpenAI.");
+            // console.log("Raw AI Response:", aiOverviewFullText); // Uncomment for debugging raw AI response
 
-            // --- Parsing the AI Response (Modified) ---
+            // --- Parsing the AI Response ---
             const overviewSection = aiOverviewFullText.split('## OVERVIEW ##')[1]?.split('## RATINGS ##')[0]?.trim() || "No overview provided by AI.";
             const ratingsSection = aiOverviewFullText.split('## RATINGS ##')[1]?.split('## ASSESSMENT ##')[0]?.trim();
             const assessmentSection = aiOverviewFullText.split('## ASSESSMENT ##')[1]?.trim();
 
             let overview = "Overview not available.";
-            const ratings: string[] = [];
+            const ratings: string[] = []; // Store as array of strings (e.g., "Speed: 85")
             let playerQualityScore: number | null = null;
-            const assignedAbilities = [];
+            const assignedAbilities = []; // Will be populated by backend logic
 
             if (overviewSection) {
-                overview = overviewSection.replace(/\[Generate 2-3 paragraphs for the player overview here\.\s*.*?\]/s, '', ).trim();
+                // Remove the bracketed instruction from the overview if AI copied it
+                overview = overviewSection.replace(/\[Generate 2-3 paragraphs for the player overview here\.\s*.*?\]/s, '').trim();
             }
 
             if (ratingsSection) {
                 const ratingLines = ratingsSection.split('\n');
                 let inRatingsList = false;
                 for (const line of ratingLines) {
+                    // Start capturing ratings after the "EA CFB 26 Hypothetical Ratings:" line
                     if (line.includes('EA CFB 26 Hypothetical Ratings:')) {
                         inRatingsList = true;
                         continue;
                     }
-                    if (inRatingsList && line.trim().startsWith('-')) {
-                        ratings.push(line.trim());
+                    // Capture lines that start with a hyphen and contain a colon (indicating "Stat Name: Value")
+                    if (inRatingsList && line.trim().startsWith('-') && line.includes(':')) {
+                        ratings.push(line.trim().substring(1).trim()); // Remove the hyphen and trim
                     } else if (inRatingsList && line.trim() === '') {
+                        // Allow empty lines within the list
                         continue;
                     } else if (inRatingsList && !line.trim().startsWith('-') && line.trim() !== '') {
+                        // Stop if we encounter a non-empty, non-hyphen line after the list started
                         break;
                     }
                 }
@@ -399,21 +444,22 @@ export async function POST(request: NextRequest) {
                 }
             }
 
-            // --- Ability Assignment Logic ---
+            // --- Ability Assignment Logic (from your existing code) ---
             const relevantAbilities = allAbilities.filter(
                 ability => ability.positions.includes(playerPosition) || ability.positions.includes("Any")
             );
 
-            const numAbilitiesToAssign = Math.floor(Math.random() * 3) + 3; // Assign 3-5 abilities
+            // Assign a random number of abilities between 3 and 5
+            const numAbilitiesToAssign = Math.floor(Math.random() * 3) + 3;
 
             // Determine base tier index based on playerQualityScore
             let baseTierIndex = 0; // Default to Bronze
             if (playerQualityScore !== null) {
-                if (playerQualityScore >= 90) baseTierIndex = 4; // X-Factor
-                else if (playerQualityScore >= 80) baseTierIndex = 3; // Platinum
-                else if (playerQualityScore >= 70) baseTierIndex = 2; // Gold
-                else if (playerQualityScore >= 60) baseTierIndex = 1; // Silver
-                else baseTierIndex = 0; // Bronze (or below 60)
+                if (playerQualityScore >= 90) baseTierIndex = 4; // X-Factor (index 4)
+                else if (playerQualityScore >= 80) baseTierIndex = 3; // Platinum (index 3)
+                else if (playerQualityScore >= 70) baseTierIndex = 2; // Gold (index 2)
+                else if (playerQualityScore >= 60) baseTierIndex = 1; // Silver (index 1)
+                else baseTierIndex = 0; // Bronze (index 0 for scores below 60)
             }
 
             // Shuffle and select abilities
@@ -422,12 +468,14 @@ export async function POST(request: NextRequest) {
 
             for (const ability of selectedAbilities) {
                 // Introduce some variability around the baseTierIndex
-                // e.g., +/- 1 tier, but clamp within bounds [0, 4]
-                let finalTierIndex = baseTierIndex + (Math.floor(Math.random() * 3) - 1); // Generates -1, 0, or 1
-                finalTierIndex = Math.max(0, Math.min(tiers.length - 1, finalTierIndex)); // Ensure it stays within valid tier indices
+                // Generates -1, 0, or 1. This means an ability can be one tier lower, same tier, or one tier higher than the base.
+                let finalTierIndex = baseTierIndex + (Math.floor(Math.random() * 3) - 1);
+                // Ensure the final tier index stays within the valid bounds [0, tiers.length - 1]
+                finalTierIndex = Math.max(0, Math.min(tiers.length - 1, finalTierIndex));
 
                 const finalTier = tiers[finalTierIndex];
 
+                // Push the assigned ability to the array that will be sent to the frontend
                 assignedAbilities.push({
                     name: ability.name,
                     tier: finalTier,
@@ -435,12 +483,16 @@ export async function POST(request: NextRequest) {
                 });
             }
 
-            return NextResponse.json({ overview, ratings, assignedAbilities });
+            return NextResponse.json({
+                aiOverview: overview,
+                aiRatings: ratings,
+                assignedAbilities: assignedAbilities
+            }, { status: 200 });
 
         } catch (openaiError: any) {
             console.error(`Error calling OpenAI API:`, openaiError);
             const errorMessage = openaiError.message || "An unknown error occurred with the OpenAI API.";
-            const errorDetails = openaiError.response?.data || openaiError;
+            const errorDetails = openaiError.response?.data || openaiError; // OpenAI API errors have a .response.data
 
             return NextResponse.json({
                 error: `Failed to get overview from OpenAI API.`,
