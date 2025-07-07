@@ -4,8 +4,8 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import './globals.css';
-import Link from 'next/link'; // Import Link for navigation
-import { useRouter } from 'next/navigation'; // Import useRouter
+import Link from 'next/link';
+// import { useRouter } from 'next/navigation'; // Not strictly needed here, Link handles it
 
 // --- Interfaces for CollegeFootballData.com API ---
 
@@ -84,7 +84,7 @@ interface PlayerResultsProps {
     currentSearchYear: string; // Added to pass down to PlayerCard
 }
 
-// --- PlayerCard Component (UPDATED to navigate to detail page) ---
+// --- PlayerCard Component (UPDATED for CSS and navigation) ---
 const PlayerCard: React.FC<PlayerCardProps> = ({ player, searchYear }) => {
     const displayName = player.name || `${player.firstName || ''} ${player.lastName || ''}`.trim() || 'N/A Name';
 
@@ -92,21 +92,23 @@ const PlayerCard: React.FC<PlayerCardProps> = ({ player, searchYear }) => {
     const encodedPlayer = encodeURIComponent(JSON.stringify(player));
 
     return (
-        // Use Next.js Link component to navigate
+        // Link wraps a div with the styling, ensuring CSS applies correctly
         <Link
             href={`/player/${player.id}?player=${encodedPlayer}&year=${searchYear}`}
-            className="player-card" // Apply existing styling to the Link itself
+            // No className here directly on Link, it wraps the styled div
         >
-            <h4>{displayName}</h4>
-            <p>{player.team || 'N/A Team'} | {player.position || 'N/A Pos'} | {searchYear || 'N/A Season'}</p>
-            {player.jersey && <p>Jersey: #{player.jersey}</p>}
-            {player.height && player.weight && (
-                <p>Height: {Math.floor(player.height / 12)}'{player.height % 12}" | Weight: {player.weight} lbs</p>
-            )}
-            {/* REMOVED: AI Overview Button and Display from here */}
+            <div className="player-card"> {/* Apply styling here */}
+                <h4>{displayName}</h4>
+                <p>{player.team || 'N/A Team'} | {player.position || 'N/A Pos'} | {searchYear || 'N/A Season'}</p>
+                {player.jersey && <p>Jersey: #{player.jersey}</p>}
+                {player.height && player.weight && (
+                    <p>Height: {Math.floor(player.height / 12)}'{player.height % 12}" | Weight: {player.weight} lbs</p>
+                )}
+            </div>
         </Link>
     );
 };
+
 
 // --- PlayerResults Component (no changes needed) ---
 const PlayerResults: React.FC<PlayerResultsProps> = ({ players, isLoadingPlayers, error, currentSearchYear }) => {
@@ -346,7 +348,7 @@ const CollegeFootballApp: React.FC = () => {
         };
 
         fetchFilterOptions();
-    }, []); // Dependencies are empty now as CFBD_API_KEY/BASE_URL are no longer directly used here.
+    }, []);
 
     // 2. Fetch players based on applied filters - NOW USES PROXY WITH 'players' TARGET!
     const fetchPlayers = useCallback(async () => {
@@ -362,7 +364,6 @@ const CollegeFootballApp: React.FC = () => {
 
         try {
             const queryParams = new URLSearchParams();
-            // Add 'target=players' to indicate the proxy should hit the player search endpoint
             queryParams.append('target', 'players');
 
             const seasonToQuery = appliedFilters.year || (apiYears.length > 0 ? apiYears[0] : '2024');
