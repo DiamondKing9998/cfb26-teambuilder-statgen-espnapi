@@ -287,7 +287,7 @@ const CollegeFootballApp: React.FC = () => {
                 // --- Fetch Teams from CFBD API (FBS & FCS) ---
                 // We'll fetch teams for the latest year to get the most current list of schools.
                 // If 2025 data seems incomplete, try 2024 or 2023 for initial population.
-                const currentYearForTeams = endYear; // Use 2025 as the target end year
+                const currentYearForTeams = 2024; // Use 2025 as the target end year
 
                 console.log(`Fetching teams for year: ${currentYearForTeams}`);
                 const teamsResponse = await fetch(`${CFBD_BASE_URL}/teams?year=${currentYearForTeams}`, {
