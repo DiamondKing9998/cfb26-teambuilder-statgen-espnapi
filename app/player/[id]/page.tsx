@@ -2,11 +2,12 @@
 
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
 
+// Interface for a player from CFBD API (and enriched with team colors/logos)
 interface CfbdPlayer {
     id: string;
     firstName: string;
@@ -21,7 +22,7 @@ interface CfbdPlayer {
     teamColor: string; // Primary team color (e.g., Michigan Blue)
     teamLogo: string;
     teamAlternateColor: string; // Secondary team color (e.g., Michigan Maize)
-    teamDarkLogo: string;
+    teamDarkLogo: string; // A darker logo variation if available
 }
 
 // Interface for an assigned ability
@@ -31,8 +32,9 @@ interface AssignedAbility {
     description: string;
 }
 
-interface PlayerDetails {
-    player: CfbdPlayer;
+// Interface for the overall player details state
+interface PlayerDetailsState {
+    player: CfbdPlayer | null; // Player can be null initially or if not found
     aiOverview: string;
     aiRatings: string[];
     assignedAbilities: AssignedAbility[];
@@ -40,59 +42,26 @@ interface PlayerDetails {
     error: string | null;
 }
 
-// This client-side parser is kept for robustness, but the API is expected to return structured data.
-const parseAiResponse = (fullText: string) => {
-    const overviewSection = fullText.split('## OVERVIEW ##')[1]?.split('## RATINGS ##')[0]?.trim();
-    const ratingsSection = fullText.split('## RATINGS ##')[1]?.split('## ASSESSMENT ##')[0]?.trim();
-
-    let overview = "Overview not available.";
-    const ratings: string[] = [];
-
-    if (overviewSection) {
-        overview = overviewSection.replace(/\[Generate 2-3 paragraphs for the player overview here\.\s*.*?\]/s, '', ).trim();
-    }
-
-    if (ratingsSection) {
-        const ratingLines = ratingsSection.split('\n');
-        let inRatingsList = false;
-        for (const line of ratingLines) {
-            if (line.includes('EA CFB 26 Hypothetical Ratings:')) {
-                inRatingsList = true;
-                continue;
-            }
-            if (inRatingsList && line.trim().startsWith('-')) {
-                ratings.push(line.trim());
-            } else if (inRatingsList && line.trim() === '') {
-                continue;
-            } else if (inRatingsList && !line.trim().startsWith('-') && line.trim() !== '') {
-                break;
-            }
-        }
-    }
-    return { overview, ratings };
-};
-
+// *** IMPORTANT: The parseAiResponse function has been REMOVED. ***
+// Your /api/ai-overview endpoint is now expected to return structured JSON
+// with 'aiOverview', 'aiRatings', and 'assignedAbilities' properties already parsed.
+// Attempting to use a client-side parser on the already-parsed AI overview string
+// (as was the case with `data.aiOverview` in the previous code) would cause the 'split' error.
 
 export default function PlayerDetailPage() {
-    const searchParams = useSearchParams();
+    const searchParams = useSearchParams(); // Correctly uses searchParams for query parameters
 
-    const [playerDetails, setPlayerDetails] = useState<PlayerDetails>({
-        player: {
-            id: '', firstName: '', lastName: '', name: '', position: '',
-            height: null, weight: null, jersey: null, hometown: null, team: '',
-            teamColor: '#000000', // Default black
-            teamLogo: '',
-            teamAlternateColor: '#FFFFFF', // Default white
-            teamDarkLogo: ''
-        },
-        aiOverview: 'Loading AI Overview...',
+    const [playerDetails, setPlayerDetails] = useState<PlayerDetailsState>({
+        player: null, // Initialize player as null
+        aiOverview: 'Generating AI Overview...', // Initial message while AI data loads
         aiRatings: [],
         assignedAbilities: [],
         loading: true,
         error: null,
     });
 
-    const fetchTeamDetails = async (teamName: string) => {
+    // Memoize fetchTeamDetails to prevent unnecessary re-creations and re-fetches
+    const fetchTeamDetails = useCallback(async (teamName: string) => {
         try {
             // Using a fixed year for team details for consistent logo/colors
             const teamsProxyUrl = `/api/cfbd-proxy?target=teams&year=2024`;
@@ -113,15 +82,16 @@ export default function PlayerDetailPage() {
             }
         } catch (error) {
             console.error("Error fetching team details:", error);
+            // Don't rethrow; return fallback colors/logos if fetch fails
         }
-        // Fallback colors if team details can't be fetched
+        // Fallback colors if team details can't be fetched or team not found
         return {
             teamColor: '#4A5568', // bg-gray-700 fallback
             teamAlternateColor: '#A0AEC0', // bg-gray-400 fallback
             teamLogo: '',
             teamDarkLogo: '',
         };
-    };
+    }, []); // No dependencies for useCallback as the URL for teamsProxyUrl is static
 
     useEffect(() => {
         const fetchAllDetails = async () => {
@@ -131,16 +101,20 @@ export default function PlayerDetailPage() {
             if (!playerString || !year) {
                 setPlayerDetails(prev => ({
                     ...prev,
-                    error: 'Player data or year missing. Please go back and select a player from the search results.',
+                    error: 'Player data or year missing from URL. Please go back and select a player from the search results.',
                     loading: false
                 }));
                 return;
             }
 
             try {
+                // Parse player data from URL query string
                 const playerFromUrl: CfbdPlayer = JSON.parse(decodeURIComponent(playerString));
+
+                // Fetch team specific details (colors, logos)
                 const teamInfo = await fetchTeamDetails(playerFromUrl.team);
 
+                // Combine player data with fetched team details
                 const playerWithTeamDetails: CfbdPlayer = {
                     ...playerFromUrl,
                     teamColor: teamInfo.teamColor,
@@ -149,17 +123,18 @@ export default function PlayerDetailPage() {
                     teamDarkLogo: teamInfo.teamDarkLogo,
                 };
 
+                // Update state to show loading for AI data specifically
                 setPlayerDetails(prev => ({
                     ...prev,
                     player: playerWithTeamDetails,
-                    loading: true,
+                    loading: true, // Still loading for AI data
                     error: null,
-                    aiOverview: 'Loading AI Overview...', // Reset message
-                    aiRatings: [], // Clear previous ratings
-                    assignedAbilities: [] // Clear previous abilities
+                    aiOverview: 'Generating AI Overview...', // Show a generating message
+                    aiRatings: [],
+                    assignedAbilities: []
                 }));
 
-                // Fetch AI overview, ratings, and abilities
+                // Fetch AI overview, ratings, and abilities from your backend API
                 const response = await fetch('/api/ai-overview', {
                     method: 'POST',
                     headers: {
@@ -169,21 +144,21 @@ export default function PlayerDetailPage() {
                 });
 
                 if (response.ok) {
-                    const data = await response.json();
-                    const { overview, ratings, assignedAbilities } = data;
+                    const data = await response.json(); // Data is ALREADY structured JSON
 
+                    // CRITICAL FIX: Directly use properties from the JSON response
                     setPlayerDetails(prev => ({
                         ...prev,
-                        aiOverview: overview,
-                        aiRatings: ratings,
-                        assignedAbilities: assignedAbilities || [], // Ensure it's an array
+                        aiOverview: data.aiOverview || 'No AI overview available.',
+                        aiRatings: data.aiRatings || [],
+                        assignedAbilities: data.assignedAbilities || [],
                         loading: false
                     }));
                 } else {
                     const errorData = await response.json();
                     setPlayerDetails(prev => ({
                         ...prev,
-                        error: `Failed to fetch AI overview: ${errorData.details || response.statusText}`,
+                        error: `Failed to fetch AI overview: ${errorData.details || errorData.error || response.statusText}`,
                         loading: false
                     }));
                 }
@@ -198,7 +173,7 @@ export default function PlayerDetailPage() {
         };
 
         fetchAllDetails();
-    }, [searchParams]);
+    }, [searchParams, fetchTeamDetails]); // Add fetchTeamDetails to dependencies
 
     // Destructure for easier access
     const { player, aiOverview, aiRatings, assignedAbilities, loading, error } = playerDetails;
@@ -210,7 +185,7 @@ export default function PlayerDetailPage() {
             case 'Silver': return 'text-gray-400';
             case 'Gold': return 'text-yellow-500';
             case 'Platinum': return 'text-blue-400';
-            case 'X-Factor': return 'text-red-500';
+            case 'X-Factor': return 'text-red-500'; // Commonly used for X-Factor
             default: return 'text-white';
         }
     };
@@ -219,8 +194,8 @@ export default function PlayerDetailPage() {
         return (
             <div className="min-h-screen flex items-center justify-center bg-gray-900 text-white">
                 <div className="text-center">
-                    <p className="text-xl">Loading player AI overview...</p>
-                    <div className="mt-4 animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+                    <p className="text-xl">Loading player details and generating AI overview...</p>
+                    <div className="mt-4 animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mx-auto"></div>
                 </div>
             </div>
         );
@@ -229,7 +204,20 @@ export default function PlayerDetailPage() {
     if (error) {
         return (
             <div className="min-h-screen flex flex-col items-center justify-center bg-gray-900 text-red-400 p-8">
-                <p className="text-xl mb-4">Error: {error}</p>
+                <p className="text-xl mb-4 text-center">Error: {error}</p>
+                <Link href="/" className="px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition duration-300">
+                    Go Back to Search
+                </Link>
+            </div>
+        );
+    }
+
+    // This case should ideally be caught by `if (error)` if player data is truly missing from URL.
+    // However, if player data from URL is invalid/incomplete, it could still be null after parsing.
+    if (!player) {
+        return (
+            <div className="min-h-screen flex flex-col items-center justify-center bg-gray-900 text-white p-8">
+                <p className="text-xl mb-4">No player data available. Please select a player from the search page.</p>
                 <Link href="/" className="px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition duration-300">
                     Go Back to Search
                 </Link>
@@ -243,6 +231,9 @@ export default function PlayerDetailPage() {
     const formattedHeight = playerHeightFeet !== null && playerHeightInches !== null
         ? `${playerHeightFeet}'${playerHeightInches}"`
         : 'N/A';
+
+    // Get the year from search params for display
+    const displayYear = searchParams.get('year') || new Date().getFullYear().toString();
 
     return (
         <div className="min-h-screen bg-gray-900 text-white p-4 sm:p-8">
@@ -267,6 +258,12 @@ export default function PlayerDetailPage() {
                                 width={120}
                                 height={120}
                                 className="mx-auto mb-4 bg-white p-2 rounded-full shadow-md"
+                                onError={(e) => {
+                                    // Fallback to teamDarkLogo or a generic default if primary logo fails
+                                    const target = e.target as HTMLImageElement;
+                                    target.onerror = null; // Prevents infinite loop if fallback also fails
+                                    target.src = player.teamDarkLogo || '/images/default-team-logo.png'; // Path to a default logo if you have one
+                                }}
                             />
                         )}
                         <h1
@@ -279,17 +276,17 @@ export default function PlayerDetailPage() {
                             className="text-lg sm:text-xl"
                             style={{ color: player.teamAlternateColor || '#FFFFFF' }} // Set subtitle to secondary team color
                         >
-                            {player.team || 'N/A Team'} | {player.position || 'N/A Pos'} | {searchParams.get('year') || 'N/A Season'}
+                            {player.team || 'N/A Team'} | {player.position || 'N/A Pos'} | {displayYear} Season
                         </p>
 
-                        {/* Player Core Stats - Keeping text-white for general readability, consider if alternate color is always legible here */}
+                        {/* Player Core Stats */}
                         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-x-6 gap-y-2 mt-6 text-base sm:text-lg justify-items-center text-white">
                             <p><strong>Jersey:</strong> {player.jersey ? `#${player.jersey}` : 'N/A'}</p>
                             <p><strong>Height:</strong> {formattedHeight}</p>
                             <p><strong>Weight:</strong> {player.weight ? `${player.weight} lbs` : 'N/A'}</p>
                             <p><strong>Hometown:</strong> {player.hometown || 'N/A'}</p>
                             <p><strong>Team:</strong> {player.team || 'N/A'}</p>
-                            {/* Grade Level: Not directly available from current API data */}
+                            {/* If you plan to add Grade Level, ensure your data source provides it */}
                             {/* <p><strong>Grade:</strong> [N/A]</p> */}
                         </div>
                     </div>
@@ -300,6 +297,7 @@ export default function PlayerDetailPage() {
                     {/* AI Overview Section */}
                     <h2 className="text-xl sm:text-2xl font-semibold mb-4 text-blue-400">AI Overview for {player.name}</h2>
                     <div className="prose prose-invert max-w-none text-base sm:text-lg leading-relaxed mb-8">
+                        {/* Render overview, splitting by newlines for paragraph separation */}
                         {aiOverview.split('\n').map((paragraph, index) => (
                             paragraph.trim() !== '' && <p key={index} className="mb-3">{paragraph.trim()}</p>
                         ))}
@@ -307,22 +305,22 @@ export default function PlayerDetailPage() {
                     </div>
 
                     {/* AI Ratings Section */}
-                    {aiRatings.length > 0 && (
+                    {aiRatings.length > 0 ? (
                         <>
                             <h2 className="text-xl sm:text-2xl font-semibold mt-6 mb-4 text-blue-400">EA CFB 26 Hypothetical Ratings</h2>
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-2 text-base sm:text-lg mb-8">
                                 {aiRatings.map((rating, index) => (
+                                    // Assuming ratings are already formatted like "Stat: Value"
                                     <p key={index} className="text-gray-300">{rating}</p>
                                 ))}
                             </div>
                         </>
-                    )}
-                    {aiRatings.length === 0 && !loading && (
+                    ) : (
                         <p className="mt-8 text-gray-400 italic mb-8">No hypothetical ratings available for this player.</p>
                     )}
 
                     {/* Player Abilities Section */}
-                    {assignedAbilities.length > 0 && (
+                    {assignedAbilities.length > 0 ? (
                         <>
                             <h2 className="text-xl sm:text-2xl font-semibold mt-6 mb-4 text-blue-400">Player Abilities</h2>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
@@ -336,8 +334,7 @@ export default function PlayerDetailPage() {
                                 ))}
                             </div>
                         </>
-                    )}
-                    {assignedAbilities.length === 0 && !loading && (
+                    ) : (
                         <p className="mt-8 text-gray-400 italic mb-8">No special abilities assigned to this player.</p>
                     )}
 
@@ -345,7 +342,7 @@ export default function PlayerDetailPage() {
                     <div className="mt-8 text-center">
                         <Link
                             href="/"
-                            className="px-6 py-3 bg-blue-600 !text-white font-semibold rounded-lg hover:bg-blue-700 transition duration-300"
+                            className="px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition duration-300"
                         >
                             Back to Player Search
                         </Link>
