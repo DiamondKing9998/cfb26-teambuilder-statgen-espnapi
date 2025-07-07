@@ -169,7 +169,7 @@ export async function POST(request: NextRequest) {
             console.log(`Attempting to fetch ALL season stats for ${teamName} in ${year} from CFBD: ${cfbdStatsUrl}`);
             const cfbdStatsResponse = await fetch(cfbdStatsUrl, {
                 headers: {
-                    'Authorization': `Bearer ${CFBD_API_KEY}`,
+                    'Authorization': `Bearer ${CFBD_API_KEY}`, // CORRECTED LINE HERE
                     'Accept': 'application/json'
                 }
             });
