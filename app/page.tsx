@@ -8,20 +8,21 @@ import './globals.css';
 // --- Interfaces for CollegeFootballData.com API ---
 
 interface CfbdPlayer {
-    id: string;
-    team: string;
-    name: string;
-    firstName: string;
-    lastName: string;
-    weight: number | null;
-    height: number | null;
-    jersey: number | null;
-    position: string | null;
-    hometown: string | null;
-    teamColor: string | null;
-    teamColorSecondary: string | null;
+    id: string; // Changed from number to string based on sample data
+    team: string; // e.g., "Michigan"
+    name: string; // Full name, e.g., "Aidan Hutchinson"
+    firstName: string; // e.g., "Aidan"
+    lastName: string;  // e.g., "Hutchinson"
+    weight: number | null; // e.g., 269
+    height: number | null; // e.g., 78 (inches)
+    jersey: number | null; // e.g., 97
+    position: string | null; // e.g., "DL"
+    hometown: string | null; // e.g., "Plymouth"
+    teamColor: string | null; // e.g., "#00274c"
+    teamColorSecondary: string | null; // e.g., "#ffcb05"
 }
 
+// NEW INTERFACE: Added CfbdTeam definition for the teams API response
 interface CfbdTeam {
     id: number;
     school: string;
@@ -32,7 +33,7 @@ interface CfbdTeam {
     alt_name3: string | null;
     conference: string | null;
     division: string | null;
-    classification: string | null;
+    classification: string | null; // e.g., "FBS", "FCS"
     color: string | null;
     alt_color: string | null;
     logos: string[] | null;
@@ -71,19 +72,54 @@ interface FilterSidebarProps {
 
 interface PlayerCardProps {
     player: CfbdPlayer;
-    searchYear: string;
+    searchYear: string; // Added to display the year from the search filter
 }
 
 interface PlayerResultsProps {
     players: CfbdPlayer[];
     isLoadingPlayers: boolean;
     error: string | null;
-    currentSearchYear: string;
+    currentSearchYear: string; // Added to pass down to PlayerCard
 }
 
-// --- PlayerCard Component (no changes from previous update) ---
+// --- PlayerCard Component (UPDATED with AI button and overview display) ---
 const PlayerCard: React.FC<PlayerCardProps> = ({ player, searchYear }) => {
     const displayName = player.name || `${player.firstName || ''} ${player.lastName || ''}`.trim() || 'N/A Name';
+    const [aiOverview, setAiOverview] = useState<string | null>(null);
+    const [isLoadingAI, setIsLoadingAI] = useState<boolean>(false);
+    const [aiError, setAiError] = useState<string | null>(null);
+
+    const handleGenerateAIOverview = async () => {
+        setIsLoadingAI(true);
+        setAiOverview(null); // Clear previous overview
+        setAiError(null);     // Clear previous error
+
+        try {
+            // Call the new AI overview API route
+            const response = await fetch('/api/ai-overview', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                // Send player's full data and the year being displayed
+                body: JSON.stringify({ player, year: searchYear }),
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to generate AI overview');
+            }
+
+            const data = await response.json();
+            setAiOverview(data.overview); // Assuming the AI route returns { overview: "..." }
+
+        } catch (error: any) {
+            console.error("Error generating AI overview:", error);
+            setAiError(error.message || "Could not generate AI overview.");
+        } finally {
+            setIsLoadingAI(false);
+        }
+    };
 
     return (
         <div className="player-card">
@@ -93,11 +129,29 @@ const PlayerCard: React.FC<PlayerCardProps> = ({ player, searchYear }) => {
             {player.height && player.weight && (
                 <p>Height: {Math.floor(player.height / 12)}'{player.height % 12}" | Weight: {player.weight} lbs</p>
             )}
+
+            {/* AI Overview Button */}
+            <button onClick={handleGenerateAIOverview} disabled={isLoadingAI}>
+                {isLoadingAI ? 'Generating...' : 'Generate AI Overview'}
+            </button>
+
+            {/* Display AI Overview or Error */}
+            {aiOverview && (
+                <div className="ai-overview-box">
+                    <h5>AI Player Overview:</h5>
+                    <p>{aiOverview}</p>
+                </div>
+            )}
+            {aiError && (
+                <div className="ai-error-message">
+                    {aiError}
+                </div>
+            )}
         </div>
     );
 };
 
-// --- PlayerResults Component (no changes from previous update) ---
+// --- PlayerResults Component (no changes needed) ---
 const PlayerResults: React.FC<PlayerResultsProps> = ({ players, isLoadingPlayers, error, currentSearchYear }) => {
     if (isLoadingPlayers) {
         return (
@@ -121,6 +175,7 @@ const PlayerResults: React.FC<PlayerResultsProps> = ({ players, isLoadingPlayers
             <div className="player-grid">
                 {players.length > 0 ? (
                     players.map((player) => (
+                        // Pass currentSearchYear to PlayerCard
                         <PlayerCard key={player.id} player={player} searchYear={currentSearchYear} />
                     ))
                 ) : (
@@ -131,7 +186,7 @@ const PlayerResults: React.FC<PlayerResultsProps> = ({ players, isLoadingPlayers
     );
 };
 
-// --- FilterSidebar Component (no changes from previous update) ---
+// --- FilterSidebar Component (no changes needed) ---
 const FilterSidebar: React.FC<FilterSidebarProps> = ({
     onApplyFilters,
     colleges,
@@ -246,7 +301,7 @@ const FilterSidebar: React.FC<FilterSidebarProps> = ({
 };
 
 
-// --- Main App Component ---
+// --- Main App Component (no changes needed) ---
 const CollegeFootballApp: React.FC = () => {
     const [appliedFilters, setAppliedFilters] = useState({
         college: '',
@@ -266,8 +321,6 @@ const CollegeFootballApp: React.FC = () => {
 
     const [collegeNameToIdMap, setCollegeNameToIdMap] = useState<Map<string, number>>(new Map());
 
-    // REMOVED: const CFBD_API_KEY = 'YOUR_ACTUAL_API_KEY'; // This is now removed as it's handled by the proxy
-    // REMOVED: const CFBD_BASE_URL = 'https://api.collegefootballdata.com'; // No longer needed here for direct calls
 
     // 1. Fetch data for filter dropdowns (runs once on mount) - NOW USES PROXY!
     useEffect(() => {
@@ -355,7 +408,7 @@ const CollegeFootballApp: React.FC = () => {
             const queryParams = new URLSearchParams();
             // Add 'target=players' to indicate the proxy should hit the player search endpoint
             queryParams.append('target', 'players');
-            
+
             const seasonToQuery = appliedFilters.year || (apiYears.length > 0 ? apiYears[0] : '2024');
             queryParams.append('year', seasonToQuery);
             if (appliedFilters.college) {
