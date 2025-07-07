@@ -27,8 +27,8 @@ interface CfbdTeam {
     school: string;
     mascot: string | null;
     abbreviation: string | null;
-    alt_name1: string | null; // Corrected: was a duplicate before
-    alt_name2: string | null; // Corrected: was a duplicate before, now unique
+    alt_name1: string | null;
+    alt_name2: string | null;
     alt_name3: string | null;
     conference: string | null;
     division: string | null;
@@ -75,25 +75,37 @@ interface PlayerCardProps {
 }
 
 interface PlayerResultsProps {
-    players: CfbdPlayer[];
+    players: CfbdPlayer[]; // These players will already be sorted by the parent
     isLoadingPlayers: boolean;
     error: string | null;
-    currentSearchYear: string; // Added to pass down to PlayerCard
+    currentSearchYear: string;
+    // New props for sorting controls
+    sortBy: string;
+    setSortBy: React.Dispatch<React.SetStateAction<string>>;
+    sortOrder: 'asc' | 'desc';
+    setSortOrder: React.Dispatch<React.SetStateAction<'asc' | 'desc'>>;
+    hasSearched: boolean; // To know if a search has been performed
 }
+
 
 // --- PlayerCard Component (Uses .player-card class from globals.css) ---
 const PlayerCard: React.FC<PlayerCardProps> = ({ player, searchYear }) => {
+    // Fallback if firstName/lastName are null, use 'name' if available, otherwise 'N/A Name'
     const displayName = player.name || `${player.firstName || ''} ${player.lastName || ''}`.trim() || 'N/A Name';
+
+    // Encode the entire player object and the search year for the player details page
+    // Using encodeURIComponent on JSON.stringify is robust for complex objects
     const encodedPlayer = encodeURIComponent(JSON.stringify(player));
 
     return (
+        // Link wraps the div to make the entire card clickable
         <Link href={`/player/${player.id}?player=${encodedPlayer}&year=${searchYear}`}>
             {/* The div inside the Link gets the styling from globals.css */}
             <div className="player-card">
                 <h4>{displayName}</h4>
                 <p>{player.team || 'N/A Team'} | {player.position || 'N/A Pos'} | {searchYear || 'N/A Season'}</p>
-                {player.jersey && <p>Jersey: #{player.jersey}</p>}
-                {player.height && player.weight && (
+                {player.jersey !== null && <p>Jersey: #{player.jersey}</p>} {/* Only display if not null */}
+                {player.height !== null && player.weight !== null && (
                     <p>Height: {Math.floor(player.height / 12)}'{player.height % 12}" | Weight: {player.weight} lbs</p>
                 )}
             </div>
@@ -103,10 +115,31 @@ const PlayerCard: React.FC<PlayerCardProps> = ({ player, searchYear }) => {
 
 
 // --- PlayerResults Component (Uses .player-results and .player-grid from globals.css) ---
-const PlayerResults: React.FC<PlayerResultsProps> = ({ players, isLoadingPlayers, error, currentSearchYear }) => {
+const PlayerResults: React.FC<PlayerResultsProps> = ({
+    players,
+    isLoadingPlayers,
+    error,
+    currentSearchYear,
+    sortBy,
+    setSortBy,
+    sortOrder,
+    setSortOrder,
+    hasSearched
+}) => {
+    // If no search has been performed yet, show the initial message
+    if (!hasSearched && !isLoadingPlayers && !error && players.length === 0) {
+        return (
+            <main className="player-results">
+                <h2 className="text-[var(--color-primary)]">Player Results</h2>
+                <p className="loading-message">Use the search filters to find players.</p>
+            </main>
+        );
+    }
+
     if (isLoadingPlayers) {
         return (
-            <main className="player-results"> {/* Changed to use the class */}
+            <main className="player-results">
+                <h2 className="text-[var(--color-primary)]">Player Results</h2>
                 <div className="loading-message">Loading players...</div>
             </main>
         );
@@ -114,15 +147,46 @@ const PlayerResults: React.FC<PlayerResultsProps> = ({ players, isLoadingPlayers
 
     if (error) {
         return (
-            <main className="player-results"> {/* Changed to use the class */}
+            <main className="player-results">
+                <h2 className="text-[var(--color-primary)]">Player Results</h2>
                 <div className="error-message">Error fetching players: {error}</div>
             </main>
         );
     }
 
     return (
-        <main className="player-results"> {/* Changed to use the class */}
-            <h2>College Football Player Profiles</h2>
+        <main className="player-results">
+            <h2 className="text-[var(--color-primary)]">College Football Player Profiles</h2>
+
+            {/* Sorting Options UI - only show if players are found */}
+            {players.length > 0 && (
+                <div className="flex justify-end items-center mb-4 gap-2">
+                    <label htmlFor="sortBy" className="text-sm font-semibold text-[var(--color-text-default)]">Sort By:</label>
+                    <select
+                        id="sortBy"
+                        value={sortBy}
+                        onChange={(e) => setSortBy(e.target.value)}
+                        className="p-2 border border-[var(--color-input-border)] rounded-md bg-[var(--color-input-bg)] text-[var(--color-text-default)] cursor-pointer"
+                    >
+                        <option value="lastName">Last Name</option>
+                        <option value="firstName">First Name</option>
+                        <option value="position">Position</option>
+                        <option value="jersey">Jersey Number</option>
+                    </select>
+
+                    <label htmlFor="sortOrder" className="sr-only">Sort Order</label>
+                    <select
+                        id="sortOrder"
+                        value={sortOrder}
+                        onChange={(e) => setSortOrder(e.target.value as 'asc' | 'desc')}
+                        className="p-2 border border-[var(--color-input-border)] rounded-md bg-[var(--color-input-bg)] text-[var(--color-text-default)] cursor-pointer"
+                    >
+                        <option value="asc">Ascending</option>
+                        <option value="desc">Descending</option>
+                    </select>
+                </div>
+            )}
+
             <div className="player-grid"> {/* Uses the .player-grid class */}
                 {players.length > 0 ? (
                     players.map((player) => (
@@ -154,16 +218,19 @@ const FilterSidebar: React.FC<FilterSidebarProps> = ({
     const [positionValue, setPositionValue] = useState<string>(currentPosition);
     const [playerNameValue, setPlayerNameValue] = useState<string>(currentSearchName);
 
+    // Update internal state when props from parent (CollegeFootballApp) change
     useEffect(() => {
         setCollegeValue(currentCollege);
-    }, [currentCollege, currentYear, currentPosition, currentSearchName, colleges]);
+    }, [currentCollege]);
 
     useEffect(() => {
         setYearValue(currentYear);
     }, [currentYear]);
+
     useEffect(() => {
         setPositionValue(currentPosition);
     }, [currentPosition]);
+
     useEffect(() => {
         setPlayerNameValue(currentSearchName);
     }, [currentSearchName]);
@@ -184,7 +251,7 @@ const FilterSidebar: React.FC<FilterSidebarProps> = ({
         setYearValue('');
         setPositionValue('');
         setPlayerNameValue('');
-        onResetFilters();
+        onResetFilters(); // Trigger reset in parent
     };
 
     return (
@@ -192,7 +259,7 @@ const FilterSidebar: React.FC<FilterSidebarProps> = ({
             <h2>College Football Player Filters</h2>
             <form onSubmit={handleSubmit} className="filter-form"> {/* Uses the .filter-form class */}
                 {isLoadingFilters ? (
-                    <div className="loading-message">Loading filters...</div> // Changed to use loading-message class
+                    <div className="loading-message">Loading filters...</div>
                 ) : (
                     <>
                         <div className="filter-group"> {/* Uses the .filter-group class */}
@@ -249,8 +316,8 @@ const FilterSidebar: React.FC<FilterSidebarProps> = ({
                         </div>
 
                         <div className="button-group"> {/* Uses the .button-group class */}
-                            <button type="submit" className="submit-button">Search Players</button> {/* Uses submit-button class */}
-                            <button type="button" className="reset-button" onClick={handleReset}>Reset Filters</button> {/* Uses reset-button class */}
+                            <button type="submit" className="submit-button">Search Players</button>
+                            <button type="button" className="reset-button" onClick={handleReset}>Reset Filters</button>
                         </div>
                     </>
                 )}
@@ -273,6 +340,14 @@ const CollegeFootballApp: React.FC = () => {
     const [isLoadingPlayers, setIsLoadingPlayers] = useState(false);
     const [playerError, setPlayerError] = useState<string | null>(null);
 
+    // New state for sorting
+    const [sortBy, setSortBy] = useState<string>('lastName'); // Default sort by last name
+    const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc'); // Default ascending
+
+    // State to track if a search has been performed
+    const [hasSearched, setHasSearched] = useState(false);
+
+
     const [isLoadingFilters, setIsLoadingFilters] = useState(true);
     const [apiColleges, setApiColleges] = useState<{ name: string; id: number }[]>([]);
     const [apiYears, setApiYears] = useState<string[]>([]);
@@ -290,7 +365,7 @@ const CollegeFootballApp: React.FC = () => {
             try {
                 // --- Generate Years 1940-2025 ---
                 const startYear = 1940;
-                const endYear = 2025;
+                const endYear = new Date().getFullYear(); // Up to current year
                 const generatedYears: string[] = [];
                 for (let year = endYear; year >= startYear; year--) {
                     generatedYears.push(year.toString());
@@ -298,7 +373,7 @@ const CollegeFootballApp: React.FC = () => {
                 setApiYears(generatedYears);
 
                 // --- Fetch Teams from CFBD API via Proxy ---
-                const currentYearForTeams = '2024';
+                const currentYearForTeams = '2024'; // Using a fixed year for teams for now
                 const teamsProxyUrl = `/api/cfbd-proxy?target=teams&year=${currentYearForTeams}`;
 
                 console.log(`Fetching teams for year: ${currentYearForTeams} via proxy: ${teamsProxyUrl}`);
@@ -355,10 +430,10 @@ const CollegeFootballApp: React.FC = () => {
     const fetchPlayers = useCallback(async () => {
         setIsLoadingPlayers(true);
         setPlayerError(null);
-        setPlayers([]);
+        setPlayers([]); // Clear previous results immediately
 
-        const hasActiveFilters = Object.values(appliedFilters).some(value => value !== '') || appliedFilters.playerName !== '';
-        if (!hasActiveFilters) {
+        const hasActiveFilters = Object.values(appliedFilters).some(value => value !== '');
+        if (!hasActiveFilters && !hasSearched) { // Only return if no filters are set and no search has been initiated
             setIsLoadingPlayers(false);
             return;
         }
@@ -367,8 +442,10 @@ const CollegeFootballApp: React.FC = () => {
             const queryParams = new URLSearchParams();
             queryParams.append('target', 'players');
 
+            // Default to the latest year if no year is selected and years are loaded
             const seasonToQuery = appliedFilters.year || (apiYears.length > 0 ? apiYears[0] : '2024');
             queryParams.append('year', seasonToQuery);
+
             if (appliedFilters.college) {
                 queryParams.append('team', appliedFilters.college);
             }
@@ -402,22 +479,71 @@ const CollegeFootballApp: React.FC = () => {
         } finally {
             setIsLoadingPlayers(false);
         }
-    }, [appliedFilters, apiYears]);
+    }, [appliedFilters, apiYears, hasSearched]); // Added hasSearched to dependencies
 
+    // Trigger player fetch when filters change or initially if a default search should occur
     useEffect(() => {
-        fetchPlayers();
-    }, [fetchPlayers, appliedFilters, isLoadingFilters]);
+        if (hasSearched || Object.values(appliedFilters).some(value => value !== '')) {
+            fetchPlayers();
+        }
+    }, [fetchPlayers, appliedFilters, hasSearched]);
 
 
     const handleApplyFilters = useCallback((filters: { college: string; year: string; position: string; playerName: string }) => {
         setAppliedFilters(filters);
+        setHasSearched(true); // Mark that a search has been initiated
     }, []);
 
     const handleResetAllFilters = useCallback(() => {
         setAppliedFilters({ college: '', year: '', position: '', playerName: '' });
         setPlayers([]);
         setPlayerError(null);
+        setSortBy('lastName'); // Reset sort options
+        setSortOrder('asc'); // Reset sort options
+        setHasSearched(false); // Reset search state
     }, []);
+
+    // Sorting Logic Function
+    const getSortedPlayers = useCallback((playersToSort: CfbdPlayer[]) => {
+        if (!playersToSort || playersToSort.length === 0) {
+            return [];
+        }
+
+        return [...playersToSort].sort((a, b) => {
+            let valA: any, valB: any;
+
+            // Handle potential null values for sorting keys
+            const getSortValue = (player: CfbdPlayer, key: string) => {
+                switch (key) {
+                    case 'lastName':
+                        return player.lastName || '';
+                    case 'firstName':
+                        return player.firstName || '';
+                    case 'position':
+                        return player.position || '';
+                    case 'jersey':
+                        // Use 0 for null/invalid jersey numbers to sort them consistently (e.g., at the beginning/end)
+                        return player.jersey !== null ? parseInt(player.jersey.toString(), 10) : 0;
+                    default:
+                        return '';
+                }
+            };
+
+            valA = getSortValue(a, sortBy);
+            valB = getSortValue(b, sortBy);
+
+            if (typeof valA === 'string' && typeof valB === 'string') {
+                const comparison = valA.localeCompare(valB);
+                return sortOrder === 'asc' ? comparison : -comparison;
+            } else { // Assuming numerical for jersey
+                const comparison = valA - valB;
+                return sortOrder === 'asc' ? comparison : -comparison;
+            }
+        });
+    }, [sortBy, sortOrder]); // Re-memoize if sort criteria change
+
+    // Apply sorting to the players whenever the players array or sort criteria change
+    const sortedPlayers = getSortedPlayers(players);
 
     return (
         <div className="App"> {/* Uses the .App class from globals.css */}
@@ -441,10 +567,16 @@ const CollegeFootballApp: React.FC = () => {
                     currentSearchName={appliedFilters.playerName}
                 />
                 <PlayerResults
-                    players={players}
+                    players={sortedPlayers} // Pass the already sorted players
                     isLoadingPlayers={isLoadingPlayers}
                     error={playerError}
                     currentSearchYear={appliedFilters.year}
+                    // Pass sorting state and setters to PlayerResults
+                    sortBy={sortBy}
+                    setSortBy={setSortBy}
+                    sortOrder={sortOrder}
+                    setSortOrder={setSortOrder}
+                    hasSearched={hasSearched}
                 />
             </div>
 
