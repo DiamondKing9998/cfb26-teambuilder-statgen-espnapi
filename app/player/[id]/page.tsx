@@ -225,7 +225,7 @@ export default function PlayerDetailPage() {
                     </div>
 
                     <h2 className="text-xl sm:text-2xl font-semibold mt-6 mb-4 text-blue-400">AI Overview</h2>
-                    <div className="prose prose-invert max-w-none text-base sm:text-lg leading-relaxed">
+                    <div className="prose prose-invert max-w-none text-base sm:text-lg leading-relaxed pl-4">
                         {aiOverview.split('\n').map((paragraph, index) => (
                             paragraph.trim() !== '' && <p key={index} className="mb-3">{paragraph.trim()}</p>
                         ))}
