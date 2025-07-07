@@ -145,8 +145,10 @@ const FilterSidebar: React.FC<FilterSidebarProps> = ({
 
     // Update local state when props from parent change (e.g., after reset)
     useEffect(() => {
-        console.log("FilterSidebar received colleges prop:", colleges); // DEBUG LOG
-        console.log("FilterSidebar colleges.length:", colleges.length); // DEBUG LOG
+        // These logs help debug if the FilterSidebar receives correct data
+        // For production builds, Vercel might strip these console logs.
+        console.log("FilterSidebar received colleges prop:", colleges);
+        console.log("FilterSidebar colleges.length:", colleges.length);
 
         setCollegeValue(currentCollege);
     }, [currentCollege, currentYear, currentPosition, currentSearchName, colleges]); // ADD 'colleges' to dependency array
@@ -360,11 +362,14 @@ const CollegeFootballApp: React.FC = () => {
     const fetchPlayers = useCallback(async () => {
         setIsLoadingPlayers(true);
         setPlayerError(null);
-        setPlayers([]);
+        setPlayers([]); // Clear previous results
 
-        // Don't fetch players if no filters are applied initially
-        const isAnyFilterApplied = Object.values(appliedFilters).some(value => value !== '') || appliedFilters.playerName !== '';
-        if (!isAnyFilterApplied) {
+        // Determine if any filters are applied (including player name search)
+        const hasActiveFilters = Object.values(appliedFilters).some(value => value !== '') || appliedFilters.playerName !== '';
+
+        // ONLY proceed with fetching if there are active filters.
+        // This prevents an initial load of all players if no filters are set by default.
+        if (!hasActiveFilters) {
             setIsLoadingPlayers(false);
             return;
         }
@@ -422,14 +427,12 @@ const CollegeFootballApp: React.FC = () => {
     }, [appliedFilters, CFBD_API_KEY, CFBD_BASE_URL, collegeNameToIdMap, apiYears]);
 
     useEffect(() => {
-        // Only fetch players if there are active filters or a player name search
-        const hasActiveFilters = Object.values(appliedFilters).some(value => value !== '') || appliedFilters.playerName !== '';
-        // Only trigger fetchPlayers if filters are active OR it's the very first load and no filters are set yet
-        // and we are not in the middle of loading initial filter options
-        if (hasActiveFilters || (!isLoadingFilters && players.length === 0 && !playerError && !appliedFilters.college && !appliedFilters.year && !appliedFilters.position && !appliedFilters.playerName)) {
-            fetchPlayers();
-        }
-    }, [fetchPlayers, appliedFilters, isLoadingFilters, players.length, playerError]);
+        // This useEffect now primarily depends on `appliedFilters` and `isLoadingFilters`
+        // It will trigger `fetchPlayers` when:
+        // 1. `appliedFilters` changes (e.g., user submits a new search)
+        // 2. `isLoadingFilters` changes (e.g., initial dropdown options finish loading, and if initial filters are empty, it won't fetch players yet)
+        fetchPlayers();
+    }, [fetchPlayers, appliedFilters, isLoadingFilters]); // Removed players.length, playerError from dependencies
 
 
     const handleApplyFilters = useCallback((filters: { college: string; year: string; position: string; playerName: string }) => {
