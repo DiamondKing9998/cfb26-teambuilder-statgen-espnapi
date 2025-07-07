@@ -405,7 +405,51 @@ export async function POST(req: NextRequest) {
             - Class: [Freshman/Sophomore/Junior/Senior. Infer based on typical college career progression if direct info isn't available, or state N/A if impossible]
             - Redshirted: [Yes/No/Uncertain]
             - High School Rating: [e.g., 5-star, 4-star, 3-star, 2-star, Unrated. Infer if possible or state N/A]
-            - Archetype: [e.g., Pocket Passer QB, Power Back HB, Field General LB, Edge Rusher DL, Slot WR, Man Coverage CB, Pass Protector LT. Be specific to their play style.]
+            - Archetype: [Choose ONE from the list below based on the player's position and play style]
+              ${playerPosition.includes('QB') ? `  - Backfield Creator (Improviser)
+              - Pure Runner (Scrambler)
+              - Dual Threat (Scrambler/Field General)
+              - Pocket Passer (Field General)` : ''}
+              ${playerPosition.includes('RB') || playerPosition.includes('FB') ? `  - Elusive Bruiser (Elusive/Power)
+              - North/South Blocker (Utility)
+              - East/East Playmaker (Elusive)
+              - Backfield Threat (Receiving)
+              - North/South Receiver (Receiving/Power)
+              - Contact Seeker (Power)` : ''}
+              ${playerPosition.includes('WR') ? `  - Speedster (Deep Threat)
+              - Elusive Route Runner
+              - Physical Route Runner
+              - Gritty Possession
+              - Contested Specialist
+              - Gadget (QB Hybrid)
+              - Route Artist` : ''}
+              ${playerPosition.includes('TE') ? `  - Vertical Threat (Deep Threat/Physical)
+              - Gritty Possession
+              - Physical Route Runner
+              - Possession
+              - Pure Blocker` : ''}
+              ${playerPosition.includes('OL') ? `  - Raw Strength (Power/Run)
+              - Well Rounded (Power/Pass)
+              - Pass Protector
+              - Agile` : ''}
+              ${playerPosition.includes('DL') || playerPosition.includes('DE') ? `  - Speed Rusher
+              - Edge Setter (Run Stopper)
+              - Power Rusher
+              - Physical Freak (Speed/Run)` : ''}
+              ${playerPosition.includes('DT') ? `  - GAP Specialist (Run Stopper)
+              - Physical Freak (Speed/Run)
+              - Power Rusher
+              - Speed Rusher` : ''}
+              ${playerPosition.includes('LB') ? `  - Lurker (Pass Coverage)
+              - Thumper (Field General)
+              - Signal Caller (Run Stopper)` : ''}
+              ${playerPosition.includes('CB') ? `  - Bump and Run (Man)
+              - Field (Slot)
+              - Zone (Zone)
+              - Boundary (Slot/Man)` : ''}
+              ${playerPosition.includes('S') ? `  - Coverage Specialist (Zone)
+              - Box Specialist (Run Support)
+              - Hybrid` : ''}
             - Dealbreaker: [A hypothetical reason for transfer or leaving a program, e.g., Lack of playing time, Proximity to home, Coaching change, Academic struggles, NIL opportunities. State N/A if no obvious dealbreaker can be inferred.]
 
             ## ASSESSMENT ##
@@ -606,6 +650,6 @@ export async function POST(req: NextRequest) {
             );
         } else {
             return NextResponse.json({ error: 'Internal Server Error', details: error.message || 'Unknown error' }, { status: 500 });
-        }
+        };
     }
 }
