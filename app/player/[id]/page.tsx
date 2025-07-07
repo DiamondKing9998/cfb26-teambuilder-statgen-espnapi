@@ -37,7 +37,7 @@ interface PlayerDetailsState {
     player: CfbdPlayer | null; // Player can be null initially or if not found
     aiOverview: string;
     // Updated: Allow array of strings, or objects with category/stats, or objects with name/value
-    aiRatings: string[] | { category: string; stats: string }[] | { name: string; value: string }[];
+    aiRatings: string[] | { category: string; stats: any }[] | { name: string; value: any }[]; // 'stats' and 'value' can be any for robustness
     assignedAbilities: AssignedAbility[];
     loading: boolean;
     error: string | null;
@@ -310,36 +310,43 @@ export default function PlayerDetailPage() {
                         <>
                             <h2 className="text-xl sm:text-2xl font-semibold mt-6 mb-4 text-blue-400">EA CFB 26 Hypothetical Ratings</h2>
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-2 text-base sm:text-lg mb-8">
-                                {aiRatings.map((rating: any, index) => { // Using 'any' for flexibility
+                                {aiRatings.map((rating: any, index) => {
+                                    let content = null; // Initialize content for the current rating item
+
                                     if (typeof rating === 'string') {
                                         // Case 1: Rating is a plain string (e.g., "Speed: 85")
-                                        return (
-                                            <p key={index} className="text-gray-300">{rating}</p>
-                                        );
+                                        content = rating;
                                     } else if (typeof rating === 'object' && rating !== null) {
-                                        // Case 2: Rating is an object with 'category' and 'stats' (from previous fix)
-                                        if ('category' in rating && 'stats' in rating && typeof rating.category === 'string' && typeof rating.stats === 'string') {
-                                            return (
-                                                <p key={index} className="text-gray-300">
-                                                    <strong>{rating.category}:</strong> {rating.stats}
-                                                </p>
+                                        // Case 2: Rating is an object with 'category' and 'stats'
+                                        if ('category' in rating && 'stats' in rating) {
+                                            // Convert properties to string and provide fallbacks
+                                            content = (
+                                                <>
+                                                    <strong>{String(rating.category || 'N/A')}:</strong> {String(rating.stats || 'N/A')}
+                                                </>
                                             );
                                         }
-                                        // Case 3: Rating is an object with 'name' and 'value' (from current error)
-                                        if ('name' in rating && 'value' in rating && typeof rating.name === 'string' && typeof rating.value === 'string') {
-                                            return (
-                                                <p key={index} className="text-gray-300">
-                                                    <strong>{rating.name}:</strong> {rating.value}
-                                                </p>
+                                        // Case 3: Rating is an object with 'name' and 'value'
+                                        else if ('name' in rating && 'value' in rating) {
+                                            // Convert properties to string and provide fallbacks
+                                            content = (
+                                                <>
+                                                    <strong>{String(rating.name || 'N/A')}:</strong> {String(rating.value || 'N/A')}
+                                                </>
                                             );
+                                        } else {
+                                            // Log unrecognized object structures
+                                            console.warn('Unexpected object structure encountered in aiRatings, skipping:', rating);
                                         }
-                                        // If it's an object but doesn't match expected structures, log and don't render.
-                                        console.warn('Unexpected object structure encountered in aiRatings:', rating);
-                                        return null; // Prevents React error #31 for unhandled object types
+                                    } else {
+                                        // Log unrecognized data types (e.g., null, undefined, boolean)
+                                        console.warn('Unexpected data type encountered in aiRatings, skipping:', rating);
                                     }
-                                    // If it's neither a string nor a valid object type, don't render.
-                                    console.warn('Unexpected data type encountered in aiRatings:', rating);
-                                    return null;
+
+                                    // Only render a <p> tag if content was successfully generated for this item
+                                    return content ? (
+                                        <p key={index} className="text-gray-300">{content}</p>
+                                    ) : null;
                                 })}
                             </div>
                         </>
