@@ -22,10 +22,11 @@ export async function GET(request: NextRequest) {
 
     // Determine which CFBD API endpoint to call based on the 'target' parameter
     if (targetEndpoint === 'players') {
-        // Logic for fetching players (from previous steps)
+        // Logic for fetching players
         const year = searchParams.get('year');
         const team = searchParams.get('team');
         const playerName = searchParams.get('search'); // 'search' from client maps to 'searchTerm' for CFBD
+        const position = searchParams.get('position'); // <--- ADD THIS LINE to extract position
 
         if (playerName) {
             cfbdQueryParams.append('searchTerm', playerName);
@@ -34,13 +35,14 @@ export async function GET(request: NextRequest) {
         }
         if (year) cfbdQueryParams.append('year', year);
         if (team) cfbdQueryParams.append('team', team);
+        if (position) cfbdQueryParams.append('position', position); // <--- ADD THIS LINE to append position
         if (!year) cfbdQueryParams.append('year', '2024'); // Default year for players
 
         cfbdApiUrl = `${CFBD_BASE_URL}/player/search?${cfbdQueryParams.toString()}`;
 
     } else if (targetEndpoint === 'teams') {
-        // NEW LOGIC: For fetching teams for the filter sidebar
-        const year = searchParams.get('year'); // Get the year for teams, typically '2024' for current teams
+        // Logic for fetching teams for the filter sidebar
+        const year = searchParams.get('year');
 
         if (year) {
             cfbdQueryParams.append('year', year);
@@ -62,7 +64,7 @@ export async function GET(request: NextRequest) {
             headers: {
                 'Authorization': `Bearer ${CFBD_API_KEY}`,
                 'Accept': 'application/json',
-                'User-Agent': `YourAppName/1.0 (CFBD API Proxy - Target: ${targetEndpoint})` // More specific User-Agent
+                'User-Agent': `YourAppName/1.0 (CFBD API Proxy - Target: ${targetEndpoint})`
             },
         });
 
