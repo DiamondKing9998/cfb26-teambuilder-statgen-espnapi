@@ -4,6 +4,8 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import './globals.css';
+import Link from 'next/link'; // Import Link for navigation
+import { useRouter } from 'next/navigation'; // Import useRouter
 
 // --- Interfaces for CollegeFootballData.com API ---
 
@@ -82,72 +84,27 @@ interface PlayerResultsProps {
     currentSearchYear: string; // Added to pass down to PlayerCard
 }
 
-// --- PlayerCard Component (UPDATED with AI button and overview display) ---
+// --- PlayerCard Component (UPDATED to navigate to detail page) ---
 const PlayerCard: React.FC<PlayerCardProps> = ({ player, searchYear }) => {
     const displayName = player.name || `${player.firstName || ''} ${player.lastName || ''}`.trim() || 'N/A Name';
-    const [aiOverview, setAiOverview] = useState<string | null>(null);
-    const [isLoadingAI, setIsLoadingAI] = useState<boolean>(false);
-    const [aiError, setAiError] = useState<string | null>(null);
 
-    const handleGenerateAIOverview = async () => {
-        setIsLoadingAI(true);
-        setAiOverview(null); // Clear previous overview
-        setAiError(null);     // Clear previous error
-
-        try {
-            // Call the new AI overview API route
-            const response = await fetch('/api/ai-overview', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                // Send player's full data and the year being displayed
-                body: JSON.stringify({ player, year: searchYear }),
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'Failed to generate AI overview');
-            }
-
-            const data = await response.json();
-            setAiOverview(data.overview); // Assuming the AI route returns { overview: "..." }
-
-        } catch (error: any) {
-            console.error("Error generating AI overview:", error);
-            setAiError(error.message || "Could not generate AI overview.");
-        } finally {
-            setIsLoadingAI(false);
-        }
-    };
+    // Encode the player object for safe URL passing
+    const encodedPlayer = encodeURIComponent(JSON.stringify(player));
 
     return (
-        <div className="player-card">
+        // Use Next.js Link component to navigate
+        <Link
+            href={`/player/${player.id}?player=${encodedPlayer}&year=${searchYear}`}
+            className="player-card" // Apply existing styling to the Link itself
+        >
             <h4>{displayName}</h4>
             <p>{player.team || 'N/A Team'} | {player.position || 'N/A Pos'} | {searchYear || 'N/A Season'}</p>
             {player.jersey && <p>Jersey: #{player.jersey}</p>}
             {player.height && player.weight && (
                 <p>Height: {Math.floor(player.height / 12)}'{player.height % 12}" | Weight: {player.weight} lbs</p>
             )}
-
-            {/* AI Overview Button */}
-            <button onClick={handleGenerateAIOverview} disabled={isLoadingAI}>
-                {isLoadingAI ? 'Generating...' : 'Generate AI Overview'}
-            </button>
-
-            {/* Display AI Overview or Error */}
-            {aiOverview && (
-                <div className="ai-overview-box">
-                    <h5>AI Player Overview:</h5>
-                    <p>{aiOverview}</p>
-                </div>
-            )}
-            {aiError && (
-                <div className="ai-error-message">
-                    {aiError}
-                </div>
-            )}
-        </div>
+            {/* REMOVED: AI Overview Button and Display from here */}
+        </Link>
     );
 };
 
@@ -175,7 +132,6 @@ const PlayerResults: React.FC<PlayerResultsProps> = ({ players, isLoadingPlayers
             <div className="player-grid">
                 {players.length > 0 ? (
                     players.map((player) => (
-                        // Pass currentSearchYear to PlayerCard
                         <PlayerCard key={player.id} player={player} searchYear={currentSearchYear} />
                     ))
                 ) : (
@@ -496,4 +452,4 @@ const CollegeFootballApp: React.FC = () => {
     );
 };
 
-export default CollegeFootballApp; // final
+export default CollegeFootballApp;
