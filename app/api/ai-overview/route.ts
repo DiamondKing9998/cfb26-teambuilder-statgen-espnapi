@@ -1,25 +1,21 @@
 // src/app/api/ai-overview/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
-// Import GoogleGenerativeAI instead of OpenAI
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 // Load API keys from environment variables
 const CFBD_API_KEY = process.env.CFBD_API_KEY;
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY; // Changed from OPENAI_API_KEY
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
-// Initialize Google Generative AI client
-const genAI = new GoogleGenerativeAI(GEMINI_API_KEY || ''); // Pass the API key here directly
+const genAI = new GoogleGenerativeAI(GEMINI_API_KEY || '');
 
 export async function POST(request: NextRequest) {
     console.log("AI Overview proxy route hit.");
 
-    // Basic checks for API keys
     if (!CFBD_API_KEY) {
         console.error("CRITICAL ERROR: CFBD_API_KEY is not defined in the environment.");
         return NextResponse.json({ error: "Server configuration error: CFBD API key missing." }, { status: 500 });
     }
-    // Check for Gemini API key
     if (!GEMINI_API_KEY) {
         console.error("CRITICAL ERROR: GEMINI_API_KEY is not defined in the environment.");
         return NextResponse.json({ error: "Server configuration error: Gemini API key missing." }, { status: 500 });
@@ -28,7 +24,6 @@ export async function POST(request: NextRequest) {
     try {
         const { player, year } = await request.json();
 
-        // Validate incoming data
         if (!player || !year || !player.id || !player.name || !player.team) {
             return NextResponse.json({ error: "Missing required player data (id, name, team) or year in request body." }, { status: 400 });
         }
@@ -110,12 +105,12 @@ export async function POST(request: NextRequest) {
 
         // --- Step 3: Call Google Gemini API ---
         console.log("Sending prompt to Google Gemini API...");
-        // Use gemini-pro for text-only generation
-        const model = genAI.getGenerativeModel({ model: 'gemini-pro'});
+        // Use gemini-1.0-pro for text-only generation
+        const model = genAI.getGenerativeModel({ model: 'gemini-1.0-pro'}); // <-- IMPORTANT CHANGE HERE!
 
         const result = await model.generateContent(prompt);
         const response = await result.response;
-        const aiOverviewText = response.text(); // Extract the text content
+        const aiOverviewText = response.text();
 
         if (!aiOverviewText) {
             console.error("Gemini did not generate any content.");
