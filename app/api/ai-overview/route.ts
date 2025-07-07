@@ -1,17 +1,7 @@
 // src/app/api/ai-overview/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
-import OpenAI from 'openai';
-// Assuming these utilities are in the same directory or you have paths set up
-// You will need to create these files if they don't exist, or integrate their logic directly.
-// For this response, I'll provide placeholder comments for their content if they are critical.
-// import { calculatePlayerQualityScore } from './_utils/qualityScoreCalculator';
-// import { assignAbilities } from './_utils/abilityAssigner';
-
-// Initialize OpenAI client with your API key
-const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY,
-});
+import OpenAI from 'openai'; // Added this import
 
 // Define interfaces for type safety
 interface CfbdPlayer {
@@ -219,9 +209,9 @@ export async function POST(req: NextRequest) {
 
                 const playerSpecificStatsEntries = allTeamSeasonStats.filter((statEntry: any) => {
                     const entryPlayerNameLower = (statEntry.player || '').toLowerCase().trim();
-                    const entryPlayerId = statEntry.playerId;
+                    const entryPlayerId = statEntry.id; // Corrected: Use statEntry.id as per CFBD schema for player ID
 
-                    // Match by ID if available, otherwise by name
+                    // Match by ID if available, otherwise by name (player.id is the ID from your initial player search)
                     return (targetPlayerId && entryPlayerId === targetPlayerId) ||
                            (entryPlayerNameLower === targetPlayerNameLower);
                 });
@@ -331,26 +321,87 @@ export async function POST(req: NextRequest) {
             Generate 2-3 detailed paragraphs summarizing the player's key attributes, play style, strengths, and weaknesses. Focus on how their real-world performance translates to in-game potential. Be descriptive and analytical.
 
             ## RATINGS ##
-            Provide 8-10 key attribute ratings for EA Sports College Football 26.
-            Each rating should be on a scale of 1-99 and formatted as a single bullet point: "- [Attribute Name]: [Rating]"
-            Example:
-            - Speed: 88
-            - Strength: 75
-            - Agility: 90
-            - Throw Power: 92
-            - Accuracy: 85
-            - Awareness: 80
-            - Tackle: 70
-            - Break Tackle: 80
-            - Catch: 78
-            - Route Running: 85
+            Provide hypothetical in-game ratings for the player for EA Sports College Football 26.
+            Each rating should be on a scale of 0-99.
+            **Important rules for ratings:**
+            1.  **Be Realistic:** Most players will have many average or low ratings, especially in areas not relevant to their position. For example, a defensive lineman will have very low Throw Power, and an offensive lineman will have very low Man Coverage. A player's rating in a given stat should be proportional to their real-world ability and relevance for their position.
+            2.  **Missing Data:** If you cannot confidently determine a specific rating based on the provided real-world stats or general football knowledge for that player, assign a very low rating (e.g., between 0-30). Do not leave any stat unrated.
+            3.  **No Overall Rating from this section:** Do NOT calculate or provide an "Overall" rating within this list. The overall assessment is in the next section.
+            4.  **Format:** List each stat as a single bullet point: "- [Attribute Name]: [Rating]"
+                Group the ratings under the following categories exactly as shown, with each category having its own header.
 
-            Select attributes relevant to the player's position. If specific stats are missing or player details are limited, make reasonable, informed estimations based on their general position role and college football knowledge. Ensure all ratings are numbers between 1 and 99.
+            ### General ###
+            - Speed: [Value]
+            - Strength: [Value]
+            - Agility: [Value]
+            - Acceleration: [Value]
+            - Awareness: [Value]
+            - Injury: [Value]
+            - Toughness: [Value]
+            - Stamina: [Value]
+
+            ### Ball Carrier ###
+            - Break Tackle: [Value]
+            - Trucking: [Value]
+            - Change of Direction: [Value]
+            - Ball Carrier Vision: [Value]
+            - Stiff Arm: [Value]
+            - Spin Move: [Value]
+            - Juke Move: [Value]
+            - Carrying: [Value]
+            - Jumping: [Value]
+
+            ### Quarterback ###
+            - Throw Power: [Value]
+            - Short Throw Accuracy: [Value]
+            - Medium Throw Accuracy: [Value]
+            - Deep Throw Accuracy: [Value]
+            - Throw on the Run: [Value]
+            - Throw Under Pressure: [Value]
+            - Break Sack: [Value]
+            - Play Action: [Value]
+
+            ### Receiver ###
+            - Catching: [Value]
+            - Short Route Run: [Value]
+            - Medium Route Run: [Value]
+            - Deep Route Run: [Value]
+            - Catch in Traffic: [Value]
+            - Spectacular Catch: [Value]
+            - Release: [Value]
+
+            ### Blocking ###
+            - Pass Block: [Value]
+            - Pass Block Power: [Value]
+            - Pass Block Finesse: [Value]
+            - Run Block: [Value]
+            - Run Block Power: [Value]
+            - Run Block Finesse: [Value]
+            - Lead Block: [Value]
+            - Impact Blocking: [Value]
+
+            ### Defense ###
+            - Play Recognition: [Value]
+            - Tackle: [Value]
+            - Hit Power: [Value]
+            - Power Moves: [Value]
+            - Finesse Moves: [Value]
+            - Block Shedding: [Value]
+            - Pursuit: [Value]
+
+            ### Coverage ###
+            - Man Coverage: [Value]
+            - Zone Coverage: [Value]
+            - Press: [Value]
+
+            ### Kicking ###
+            - Kick Power: [Value]
+            - Kick Accuracy: [Value]
+            - Return: [Value]
+            - Long Snap: [Value]
 
             ## ASSESSMENT ##
-            Provide a concise assessment of the player's overall quality as an EA Sports College Football 26 prospect. This assessment is for internal use for ability assignment, and should be a single number between 1 and 100, representing their overall quality score.
-            Format: "Quality Score: [Number 1-100]"
-            Example: Quality Score: 87
+            Overall Player Quality: [Generate a score out of 100 (e.g., 92/100) or a descriptive term (e.g., Elite, Great, Good, Average) indicating their overall talent/impact for a player at their position. Make this accurate for known players like Joe Burrow, giving him a high score. For less prominent players like Davis Warren, give a lower, more realistic score.]
         `;
 
         // --- Logging Prompt ---
@@ -364,11 +415,14 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: "Server configuration error: OpenAI API key missing." }, { status: 500 });
         }
 
+        // Initialize the OpenAI client
+        const openai = new OpenAI({ apiKey: OPENAI_API_KEY }); // Added this line
+
         const chatCompletion = await openai.chat.completions.create({
             model: 'gpt-4o', // Or 'gpt-3.5-turbo' if you prefer
             messages: [{ role: 'user', content: prompt }],
             temperature: 0.7, // Keep it somewhat creative but factual
-            max_tokens: 1000,
+            max_tokens: 1500, // Increased max_tokens significantly to accommodate all 54 stats + categories
         });
 
         const aiResponseText = chatCompletion.choices[0].message.content;
@@ -383,7 +437,7 @@ export async function POST(req: NextRequest) {
 
         // --- Parsing AI Response ---
         let aiOverview = "No AI overview available.";
-        let aiRatings: string[] = [];
+        let aiRatings: { category: string; stats: { name: string; value: number }[] }[] = [];
         let playerQualityScore: number | null = null;
 
         // Overview parsing
@@ -392,28 +446,32 @@ export async function POST(req: NextRequest) {
             aiOverview = overviewMatch[1].trim();
         }
 
-        // Ratings parsing (more robust)
-        const ratingsMatch = aiResponseText.match(/## RATINGS ##\s*([\s\S]*?)(?=## ASSESSMENT ##|$)/);
-        if (ratingsMatch && ratingsMatch[1]) {
-            const rawRatingLines = ratingsMatch[1].split('\n');
-            aiRatings = rawRatingLines
-                .map(line => {
-                    const trimmedLine = line.trim();
-                    // Strip leading bullet points/hyphens and then trim
-                    if (trimmedLine.startsWith('- ')) {
-                        return trimmedLine.substring(2).trim();
+        // Ratings parsing (more robust for categories and individual stats)
+        const ratingsSectionMatch = aiResponseText.match(/## RATINGS ##\s*([\s\S]*?)(?=## ASSESSMENT ##|$)/);
+        if (ratingsSectionMatch && ratingsSectionMatch[1]) {
+            const rawRatingsContent = ratingsSectionMatch[1].trim();
+            const categoryRegex = /###\s*(.*?)\s*###\s*\n([\s\S]*?)(?=(?:###|$))/g;
+            let currentCategoryMatch;
+
+            while ((currentCategoryMatch = categoryRegex.exec(rawRatingsContent)) !== null) {
+                const categoryName = currentCategoryMatch[1].trim();
+                const categoryStatsText = currentCategoryMatch[2].trim();
+
+                const stats: { name: string; value: number }[] = [];
+                const statLineRegex = /-\s*(.*?):\s*(\d+)/g; // Matches "- Stat Name: Value"
+                let statMatch;
+
+                while ((statMatch = statLineRegex.exec(categoryStatsText)) !== null) {
+                    const statName = statMatch[1].trim();
+                    const statValue = parseInt(statMatch[2], 10);
+                    if (!isNaN(statValue)) {
+                        stats.push({ name: statName, value: statValue });
                     }
-                    if (trimmedLine.startsWith('* ')) { // In case AI uses asterisks
-                        return trimmedLine.substring(2).trim();
-                    }
-                    // If it's just "Attribute: Value" without a leading bullet
-                    if (trimmedLine.includes(':') && trimmedLine.split(':')[1].trim().match(/^\d+$/)) {
-                        return trimmedLine;
-                    }
-                    return ''; // Ignore lines that don't match expected format
-                })
-                .filter(line => line !== '' && line.includes(':') && line.split(':')[1].trim().match(/^\d+$/)); // Final filter for valid rating lines
+                }
+                aiRatings.push({ category: categoryName, stats: stats });
+            }
         }
+
 
         // Quality Score parsing
         const assessmentMatch = aiResponseText.match(/## ASSESSMENT ##\s*Quality Score:\s*(\d+)/);
@@ -477,7 +535,7 @@ export async function POST(req: NextRequest) {
 
         return NextResponse.json({
             aiOverview,
-            aiRatings,
+            aiRatings, // Now an array of objects with category and stats
             assignedAbilities,
             playerQualityScore, // Include quality score in response if frontend needs it
         });
