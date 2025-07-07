@@ -19,11 +19,11 @@ export async function POST(request: NextRequest) {
 
     // Basic checks for API keys
     if (!CFBD_API_KEY) {
-        console.error("CRITICAL: CFBD_API_KEY is not defined in the environment.");
+        console.error("CRITICAL ERROR: CFBD_API_KEY is not defined in the environment.");
         return NextResponse.json({ error: "Server configuration error: CFBD API key missing." }, { status: 500 });
     }
     if (!OPENAI_API_KEY) {
-        console.error("CRITICAL: OPENAI_API_KEY is not defined in the environment.");
+        console.error("CRITICAL ERROR: OPENAI_API_KEY is not defined in the environment.");
         return NextResponse.json({ error: "Server configuration error: OpenAI API key missing." }, { status: 500 });
     }
 
@@ -40,26 +40,58 @@ export async function POST(request: NextRequest) {
         const cfbdStatsUrl = `https://api.collegefootballdata.com/player/seasonstats?year=${year}&playerId=${player.id}`;
         console.log(`Attempting to fetch player season stats from CFBD: ${cfbdStatsUrl}`);
 
-        const cfbdResponse = await fetch(cfbdStatsUrl, {
-            headers: {
-                'Authorization': `Bearer ${CFBD_API_KEY}`,
-                'Accept': 'application/json',
-                'User-Agent': `YourAppName/1.0 (CFBD AI Stats Fetch)` // Identify your app
-            },
-        });
-
         let playerStats: any[] = [];
-        if (cfbdResponse.ok) {
-            playerStats = await cfbdResponse.json();
-            console.log("Player stats fetched successfully:", playerStats);
-        } else {
-            const errorText = await cfbdResponse.text();
-            console.warn(`CFBD API returned ${cfbdResponse.status} for player season stats. AI will proceed without detailed stats. Raw response:`, errorText);
-            // We'll allow the AI to still attempt an overview even if stats fetching fails,
-            // but the overview will be less detailed.
-            playerStats = []; // Ensure it's an empty array if fetch failed
-        }
+        let cfbdRawResponseText: string | null = null; // Variable to store the raw response content
 
+        try {
+            const cfbdResponse = await fetch(cfbdStatsUrl, {
+                headers: {
+                    'Authorization': `Bearer ${CFBD_API_KEY}`,
+                    'Accept': 'application/json',
+                    'User-Agent': `YourAppName/1.0 (CFBD AI Stats Fetch)` // Identify your app
+                },
+            });
+
+            // *ALWAYS* read the response as text first, regardless of status.
+            // This is critical for debugging HTML responses.
+            cfbdRawResponseText = await cfbdResponse.text();
+            console.log(`DEBUG: CFBD Response Status: ${cfbdResponse.status}, OK: ${cfbdResponse.ok}`);
+            console.log(`DEBUG: CFBD Raw Response Text (first 500 chars): ${cfbdRawResponseText.substring(0, 500)}`); // Log first part of response
+
+
+            if (cfbdResponse.ok) {
+                // If the response status is OK (e.g., 200), attempt to parse it as JSON
+                try {
+                    playerStats = JSON.parse(cfbdRawResponseText);
+                    console.log("Player stats fetched and parsed successfully.");
+                } catch (jsonParseError: any) {
+                    console.error(`ERROR: CFBD response was OK (${cfbdResponse.status}), but failed to parse JSON. JSON parse error:`, jsonParseError);
+                    console.error(`Raw CFBD Response that failed JSON parsing:`, cfbdRawResponseText);
+                    // We will proceed without stats, but this is an unexpected scenario for a 200 OK.
+                    playerStats = [];
+                }
+            } else {
+                // If the response status is NOT OK (e.g., 401, 404, 429)
+                console.error(`ERROR: CFBD API returned non-OK status ${cfbdResponse.status} (${cfbdResponse.statusText}).`);
+                console.error(`Raw CFBD Response that caused non-OK status:`, cfbdRawResponseText);
+                // In this case, playerStats will remain an empty array. The AI will generate a generic overview.
+                // OPTIONAL: If you prefer to return this error directly to the client and stop:
+                // return NextResponse.json(
+                //     { error: `Failed to fetch player stats from CFBD: ${cfbdResponse.statusText}`, details: cfbdRawResponseText },
+                //     { status: cfbdResponse.status }
+                // );
+            }
+        } catch (fetchOrOtherError: any) {
+            // This catches network errors, DNS errors, etc. before a response is even received.
+            console.error(`CRITICAL FETCH ERROR: Failed to make a request to CFBD API. Details:`, fetchOrOtherError);
+            console.error(`CFBD URL attempted: ${cfbdStatsUrl}`);
+            // In this case, playerStats will remain an empty array.
+            // OPTIONAL: If you prefer to return this error directly to the client and stop:
+            // return NextResponse.json(
+            //     { error: `Network/Fetch error for CFBD API: ${fetchOrOtherError.message}`, details: cfbdStatsUrl },
+            //     { status: 500 }
+            // );
+        }
 
         // --- Step 2: Construct AI Prompt ---
         // Provide both player details and the fetched stats for context
@@ -119,10 +151,12 @@ export async function POST(request: NextRequest) {
         console.log("AI Overview generated successfully.");
         return NextResponse.json({ overview: aiOverviewText });
 
-    } catch (error: any) {
-        console.error("Error in AI overview generation route:", error);
+    } catch (outerError: any) {
+        // This outer catch now primarily catches errors from request.json()
+        // or unexpected errors from the OpenAI API call, or re-thrown errors from the CFBD block if enabled.
+        console.error("OUTER CATCH: Generic error in AI overview generation route:", outerError);
         return NextResponse.json(
-            { error: "Failed to generate AI overview due to a server error.", details: error.message },
+            { error: "Failed to generate AI overview due to a server error.", details: outerError.message },
             { status: 500 }
         );
     }
