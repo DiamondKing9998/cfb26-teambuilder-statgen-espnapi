@@ -4,24 +4,23 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-// Import the CSS Module
-import playerCardStyles from './styles/PlayerCard.module.css'; // Corrected import path
+// We will NOT import CSS Modules here. Tailwind direct classes will be used.
 
 // --- Interfaces for CollegeFootballData.com API ---
 
 interface CfbdPlayer {
-    id: string;
-    team: string;
-    name: string;
-    firstName: string;
-    lastName: string;
-    weight: number | null;
-    height: number | null;
-    jersey: number | null;
-    position: string | null;
-    hometown: string | null;
-    teamColor: string | null;
-    teamColorSecondary: string | null;
+    id: string; // Changed from number to string based on sample data
+    team: string; // e.g., "Michigan"
+    name: string; // Full name, e.g., "Aidan Hutchinson"
+    firstName: string; // e.g., "Aidan"
+    lastName: string;  // e.g., "Hutchinson"
+    weight: number | null; // e.g., 269
+    height: number | null; // e.g., 78 (inches)
+    jersey: number | null; // e.g., 97
+    position: string | null; // e.g., "DL"
+    hometown: string | null; // e.g., "Plymouth"
+    teamColor: string | null; // e.g., "#00274c"
+    teamColorSecondary: string | null; // e.g., "#ffcb05"
 }
 
 interface CfbdTeam {
@@ -73,33 +72,36 @@ interface FilterSidebarProps {
 
 interface PlayerCardProps {
     player: CfbdPlayer;
-    searchYear: string;
+    searchYear: string; // Added to display the year from the search filter
 }
 
 interface PlayerResultsProps {
     players: CfbdPlayer[];
     isLoadingPlayers: boolean;
     error: string | null;
-    currentSearchYear: string;
+    currentSearchYear: string; // Added to pass down to PlayerCard
 }
 
-// --- PlayerCard Component (UPDATED to use CSS Modules) ---
+// --- PlayerCard Component (UPDATED for correct wrapping and styling) ---
 const PlayerCard: React.FC<PlayerCardProps> = ({ player, searchYear }) => {
     const displayName = player.name || `${player.firstName || ''} ${player.lastName || ''}`.trim() || 'N/A Name';
+
+    // Encode the player object for safe URL passing
     const encodedPlayer = encodeURIComponent(JSON.stringify(player));
 
     return (
+        // Link wraps a div with the styling, ensuring CSS applies correctly
         <Link
             href={`/player/${player.id}?player=${encodedPlayer}&year=${searchYear}`}
-            className={playerCardStyles.playerCardLink} // Optional: if you need link-specific styling
+            // No direct className on Link, the div inside will be styled
         >
-            {/* Apply the CSS Module class to the div */}
-            <div className={playerCardStyles.playerCard}>
-                <h4>{displayName}</h4>
-                <p>{player.team || 'N/A Team'} | {player.position || 'N/A Pos'} | {searchYear || 'N/A Season'}</p>
-                {player.jersey && <p>Jersey: #{player.jersey}</p>}
+            {/* THIS IS THE CRITICAL FIX FOR THE MAIN PAGE CARD STYLING */}
+            <div className="player-card bg-gray-800 rounded-lg shadow-lg p-6 mb-4 transform transition duration-200 hover:scale-105 cursor-pointer flex flex-col items-start text-left">
+                <h4 className="text-2xl font-bold text-gray-200 mb-2">{displayName}</h4>
+                <p className="text-gray-400 mb-1">{player.team || 'N/A Team'} | {player.position || 'N/A Pos'} | {searchYear || 'N/A Season'}</p>
+                {player.jersey && <p className="text-gray-400 mb-1">Jersey: #{player.jersey}</p>}
                 {player.height && player.weight && (
-                    <p>Height: {Math.floor(player.height / 12)}'{player.height % 12}" | Weight: {player.weight} lbs</p>
+                    <p className="text-gray-400">Height: {Math.floor(player.height / 12)}'{player.height % 12}" | Weight: {player.weight} lbs</p>
                 )}
             </div>
         </Link>
@@ -107,7 +109,7 @@ const PlayerCard: React.FC<PlayerCardProps> = ({ player, searchYear }) => {
 };
 
 
-// --- PlayerResults Component (UPDATED to use CSS Modules for grid) ---
+// --- PlayerResults Component (updated for better layout with Tailwind) ---
 const PlayerResults: React.FC<PlayerResultsProps> = ({ players, isLoadingPlayers, error, currentSearchYear }) => {
     if (isLoadingPlayers) {
         return (
@@ -128,21 +130,20 @@ const PlayerResults: React.FC<PlayerResultsProps> = ({ players, isLoadingPlayers
     return (
         <main className="flex-1 bg-gray-900 text-white p-6"> {/* Added padding directly here */}
             <h2 className="text-3xl font-bold text-center mb-6 text-blue-400">College Football Player Profiles</h2>
-            {/* Use the CSS Module class for the grid */}
-            <div className={playerCardStyles.playerGrid}>
+            <div className="player-grid grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 p-4"> {/* Responsive grid with gap */}
                 {players.length > 0 ? (
                     players.map((player) => (
                         <PlayerCard key={player.id} player={player} searchYear={currentSearchYear} />
                     ))
                 ) : (
-                    <p className="text-center text-gray-400" style={{ gridColumn: '1 / -1' }}>No College Football players found matching your criteria. Try adjusting your filters.</p>
+                    <p className="text-center text-gray-400 col-span-full">No College Football players found matching your criteria. Try adjusting your filters.</p>
                 )}
             </div>
         </main>
     );
 };
 
-// --- FilterSidebar Component (no changes needed) ---
+// --- FilterSidebar Component (Updated for better Tailwind styling) ---
 const FilterSidebar: React.FC<FilterSidebarProps> = ({
     onApplyFilters,
     colleges,
