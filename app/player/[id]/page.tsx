@@ -32,39 +32,37 @@ interface AssignedAbility {
     description: string;
 }
 
+// Interface for a nested rating stat (e.g., Speed: 85)
+interface NestedRatingStat {
+    name: string;
+    value: any; // Can be number or string
+}
+
 // Interface for the overall player details state
 interface PlayerDetailsState {
     player: CfbdPlayer | null; // Player can be null initially or if not found
     aiOverview: string;
-    // Updated: Allow array of strings, or objects with category/stats, or objects with name/value
-    aiRatings: string[] | { category: string; stats: any }[] | { name: string; value: any }[]; // 'stats' and 'value' can be any for robustness
+    // Updated to explicitly handle the nested array of objects for ratings
+    aiRatings: string[] | { category: string; stats: NestedRatingStat[] }[] | { name: string; value: NestedRatingStat[] }[];
     assignedAbilities: AssignedAbility[];
     loading: boolean;
     error: string | null;
 }
 
-// *** IMPORTANT: The parseAiResponse function has been REMOVED. ***
-// Your /api/ai-overview endpoint is now expected to return structured JSON
-// with 'aiOverview', 'aiRatings', and 'assignedAbilities' properties already parsed.
-// Attempting to use a client-side parser on the already-parsed AI overview string
-// (as was the case with `data.aiOverview` in the previous code) would cause the 'split' error.
-
 export default function PlayerDetailPage() {
-    const searchParams = useSearchParams(); // Correctly uses searchParams for query parameters
+    const searchParams = useSearchParams();
 
     const [playerDetails, setPlayerDetails] = useState<PlayerDetailsState>({
-        player: null, // Initialize player as null
-        aiOverview: 'Generating AI Overview...', // Initial message while AI data loads
+        player: null,
+        aiOverview: 'Generating AI Overview...',
         aiRatings: [],
         assignedAbilities: [],
         loading: true,
         error: null,
     });
 
-    // Memoize fetchTeamDetails to prevent unnecessary re-creations and re-fetches
     const fetchTeamDetails = useCallback(async (teamName: string) => {
         try {
-            // Using a fixed year for team details for consistent logo/colors
             const teamsProxyUrl = `/api/cfbd-proxy?target=teams&year=2024`;
             const teamsResponse = await fetch(teamsProxyUrl);
 
@@ -83,16 +81,14 @@ export default function PlayerDetailPage() {
             }
         } catch (error) {
             console.error("Error fetching team details:", error);
-            // Don't rethrow; return fallback colors/logos if fetch fails
         }
-        // Fallback colors if team details can't be fetched or team not found
         return {
-            teamColor: '#4A5568', // bg-gray-700 fallback
-            teamAlternateColor: '#A0AEC0', // bg-gray-400 fallback
+            teamColor: '#4A5568',
+            teamAlternateColor: '#A0AEC0',
             teamLogo: '',
             teamDarkLogo: '',
         };
-    }, []); // No dependencies for useCallback as the URL for teamsProxyUrl is static
+    }, []);
 
     useEffect(() => {
         const fetchAllDetails = async () => {
@@ -109,13 +105,9 @@ export default function PlayerDetailPage() {
             }
 
             try {
-                // Parse player data from URL query string
                 const playerFromUrl: CfbdPlayer = JSON.parse(decodeURIComponent(playerString));
-
-                // Fetch team specific details (colors, logos)
                 const teamInfo = await fetchTeamDetails(playerFromUrl.team);
 
-                // Combine player data with fetched team details
                 const playerWithTeamDetails: CfbdPlayer = {
                     ...playerFromUrl,
                     teamColor: teamInfo.teamColor,
@@ -124,18 +116,16 @@ export default function PlayerDetailPage() {
                     teamDarkLogo: teamInfo.teamDarkLogo,
                 };
 
-                // Update state to show loading for AI data specifically
                 setPlayerDetails(prev => ({
                     ...prev,
                     player: playerWithTeamDetails,
-                    loading: true, // Still loading for AI data
+                    loading: true,
                     error: null,
-                    aiOverview: 'Generating AI Overview...', // Show a generating message
+                    aiOverview: 'Generating AI Overview...',
                     aiRatings: [],
                     assignedAbilities: []
                 }));
 
-                // Fetch AI overview, ratings, and abilities from your backend API
                 const response = await fetch('/api/ai-overview', {
                     method: 'POST',
                     headers: {
@@ -145,9 +135,7 @@ export default function PlayerDetailPage() {
                 });
 
                 if (response.ok) {
-                    const data = await response.json(); // Data is ALREADY structured JSON
-
-                    // CRITICAL FIX: Directly use properties from the JSON response
+                    const data = await response.json();
                     setPlayerDetails(prev => ({
                         ...prev,
                         aiOverview: data.aiOverview || 'No AI overview available.',
@@ -174,19 +162,17 @@ export default function PlayerDetailPage() {
         };
 
         fetchAllDetails();
-    }, [searchParams, fetchTeamDetails]); // Add fetchTeamDetails to dependencies
+    }, [searchParams, fetchTeamDetails]);
 
-    // Destructure for easier access
     const { player, aiOverview, aiRatings, assignedAbilities, loading, error } = playerDetails;
 
-    // Helper function to get tier specific styling (using Tailwind CSS classes)
     const getTierColor = (tier: string) => {
         switch (tier) {
             case 'Bronze': return 'text-amber-500';
             case 'Silver': return 'text-gray-400';
             case 'Gold': return 'text-yellow-500';
             case 'Platinum': return 'text-blue-400';
-            case 'X-Factor': return 'text-red-500'; // Commonly used for X-Factor
+            case 'X-Factor': return 'text-red-500';
             default: return 'text-white';
         }
     };
@@ -213,8 +199,6 @@ export default function PlayerDetailPage() {
         );
     }
 
-    // This case should ideally be caught by `if (error)` if player data is truly missing from URL.
-    // However, if player data from URL is invalid/incomplete, it could still be null after parsing.
     if (!player) {
         return (
             <div className="min-h-screen flex flex-col items-center justify-center bg-gray-900 text-white p-8">
@@ -226,23 +210,21 @@ export default function PlayerDetailPage() {
         );
     }
 
-    // Format player height from inches to feet and inches
     const playerHeightFeet = player.height ? Math.floor(player.height / 12) : null;
     const playerHeightInches = player.height ? player.height % 12 : null;
     const formattedHeight = playerHeightFeet !== null && playerHeightInches !== null
         ? `${playerHeightFeet}'${playerHeightInches}"`
         : 'N/A';
 
-    // Get the year from search params for display
     const displayYear = searchParams.get('year') || new Date().getFullYear().toString();
 
     return (
         <div className="min-h-screen bg-gray-900 text-white p-4 sm:p-8">
             <div className="max-w-4xl mx-auto bg-gray-800 rounded-lg shadow-lg overflow-hidden">
-                {/* Player Header Section - Dynamic background and text colors */}
+                {/* Player Header Section */}
                 <div
                     className="relative p-6 sm:p-8 text-center"
-                    style={{ backgroundColor: player.teamColor || '#000000' }} // Set background to primary team color
+                    style={{ backgroundColor: player.teamColor || '#000000' }}
                 >
                     <Link href="/" className="absolute top-4 left-4 text-white hover:text-gray-200 transition duration-300 flex items-center gap-2">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
@@ -260,22 +242,21 @@ export default function PlayerDetailPage() {
                                 height={120}
                                 className="mx-auto mb-4 bg-white p-2 rounded-full shadow-md"
                                 onError={(e) => {
-                                    // Fallback to teamDarkLogo or a generic default if primary logo fails
                                     const target = e.target as HTMLImageElement;
-                                    target.onerror = null; // Prevents infinite loop if fallback also fails
-                                    target.src = player.teamDarkLogo || '/images/default-team-logo.png'; // Path to a default logo if you have one
+                                    target.onerror = null;
+                                    target.src = player.teamDarkLogo || '/images/default-team-logo.png';
                                 }}
                             />
                         )}
                         <h1
                             className="text-3xl sm:text-4xl font-bold mb-2"
-                            style={{ color: player.teamAlternateColor || '#FFFFFF' }} // Set player name to secondary team color
+                            style={{ color: player.teamAlternateColor || '#FFFFFF' }}
                         >
                             {player.name.toUpperCase()}
                         </h1>
                         <p
                             className="text-lg sm:text-xl"
-                            style={{ color: player.teamAlternateColor || '#FFFFFF' }} // Set subtitle to secondary team color
+                            style={{ color: player.teamAlternateColor || '#FFFFFF' }}
                         >
                             {player.team || 'N/A Team'} | {player.position || 'N/A Pos'} | {displayYear} Season
                         </p>
@@ -287,8 +268,6 @@ export default function PlayerDetailPage() {
                             <p><strong>Weight:</strong> {player.weight ? `${player.weight} lbs` : 'N/A'}</p>
                             <p><strong>Hometown:</strong> {player.hometown || 'N/A'}</p>
                             <p><strong>Team:</strong> {player.team || 'N/A'}</p>
-                            {/* If you plan to add Grade Level, ensure your data source provides it */}
-                            {/* <p><strong>Grade:</strong> [N/A]</p> */}
                         </div>
                     </div>
                 </div>
@@ -298,55 +277,62 @@ export default function PlayerDetailPage() {
                     {/* AI Overview Section */}
                     <h2 className="text-xl sm:text-2xl font-semibold mb-4 text-blue-400">AI Overview for {player.name}</h2>
                     <div className="prose prose-invert max-w-none text-base sm:text-lg leading-relaxed mb-8">
-                        {/* Render overview, splitting by newlines for paragraph separation */}
                         {aiOverview.split('\n').map((paragraph, index) => (
                             paragraph.trim() !== '' && <p key={index} className="mb-3">{paragraph.trim()}</p>
                         ))}
                         {aiOverview.trim() === '' && <p className="text-gray-400 italic">No detailed AI overview available for this player.</p>}
                     </div>
 
-                    {/* AI Ratings Section - FIX APPLIED HERE */}
+                    {/* AI Ratings Section - Updated for nested objects */}
                     {aiRatings.length > 0 ? (
                         <>
                             <h2 className="text-xl sm:text-2xl font-semibold mt-6 mb-4 text-blue-400">EA CFB 26 Hypothetical Ratings</h2>
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-2 text-base sm:text-lg mb-8">
                                 {aiRatings.map((rating: any, index) => {
-                                    let content = null; // Initialize content for the current rating item
+                                    let categoryTitle = '';
+                                    let statsToDisplay: NestedRatingStat[] = [];
 
-                                    if (typeof rating === 'string') {
-                                        // Case 1: Rating is a plain string (e.g., "Speed: 85")
-                                        content = rating;
-                                    } else if (typeof rating === 'object' && rating !== null) {
-                                        // Case 2: Rating is an object with 'category' and 'stats'
-                                        if ('category' in rating && 'stats' in rating) {
-                                            // Convert properties to string and provide fallbacks
-                                            content = (
-                                                <>
-                                                    <strong>{String(rating.category || 'N/A')}:</strong> {String(rating.stats || 'N/A')}
-                                                </>
-                                            );
-                                        }
-                                        // Case 3: Rating is an object with 'name' and 'value'
-                                        else if ('name' in rating && 'value' in rating) {
-                                            // Convert properties to string and provide fallbacks
-                                            content = (
-                                                <>
-                                                    <strong>{String(rating.name || 'N/A')}:</strong> {String(rating.value || 'N/A')}
-                                                </>
-                                            );
+                                    // Determine the category title and extract the stats array
+                                    if (typeof rating === 'object' && rating !== null) {
+                                        if ('category' in rating && Array.isArray(rating.stats)) {
+                                            categoryTitle = String(rating.category || 'N/A');
+                                            statsToDisplay = rating.stats;
+                                        } else if ('name' in rating && Array.isArray(rating.value)) {
+                                            categoryTitle = String(rating.name || 'N/A');
+                                            statsToDisplay = rating.value;
                                         } else {
-                                            // Log unrecognized object structures
-                                            console.warn('Unexpected object structure encountered in aiRatings, skipping:', rating);
+                                            console.warn('Unexpected top-level object structure in aiRatings, skipping:', rating);
+                                            return null; // Skip malformed top-level objects
                                         }
+                                    } else if (typeof rating === 'string') {
+                                        // Handle plain string ratings if they still exist, though unlikely with current data
+                                        return (
+                                            <p key={index} className="text-gray-300">{rating}</p>
+                                        );
                                     } else {
-                                        // Log unrecognized data types (e.g., null, undefined, boolean)
-                                        console.warn('Unexpected data type encountered in aiRatings, skipping:', rating);
+                                        console.warn('Unexpected data type in aiRatings, skipping:', rating);
+                                        return null; // Skip other unexpected types
                                     }
 
-                                    // Only render a <p> tag if content was successfully generated for this item
-                                    return content ? (
-                                        <p key={index} className="text-gray-300">{content}</p>
-                                    ) : null;
+                                    // Render the category title and then the nested stats
+                                    return (
+                                        <div key={index} className="mb-4">
+                                            <p className="text-gray-300">
+                                                <strong>{categoryTitle}:</strong>
+                                            </p>
+                                            <ul className="list-disc list-inside ml-4 text-gray-400 text-sm">
+                                                {statsToDisplay.length > 0 ? (
+                                                    statsToDisplay.map((stat, statIndex) => (
+                                                        <li key={statIndex}>
+                                                            {String(stat.name || 'N/A')}: {String(stat.value || 'N/A')}
+                                                        </li>
+                                                    ))
+                                                ) : (
+                                                    <li>No detailed stats available.</li>
+                                                )}
+                                            </ul>
+                                        </div>
+                                    );
                                 })}
                             </div>
                         </>
