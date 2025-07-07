@@ -13,10 +13,10 @@ interface CfbdPlayer {
     lastName: string;
     name: string;
     position: string;
-    height: number;
-    weight: number;
-    jersey: number;
-    hometown: string;
+    height: number | null; // Allow null as per CFBD API data
+    weight: number | null; // Allow null as per CFBD API data
+    jersey: number | null; // Allow null as per CFBD API data
+    hometown: string | null; // Allow null as per CFBD API data
     team: string;
     teamColor: string;
     teamLogo: string;
@@ -24,7 +24,7 @@ interface CfbdPlayer {
     teamDarkLogo: string;
 }
 
-// NEW: Interface for an assigned ability
+// Interface for an assigned ability
 interface AssignedAbility {
     name: string;
     tier: string;
@@ -35,7 +35,6 @@ interface PlayerDetails {
     player: CfbdPlayer;
     aiOverview: string;
     aiRatings: string[];
-    // NEW: Add assignedAbilities to PlayerDetails interface
     assignedAbilities: AssignedAbility[];
     loading: boolean;
     error: string | null;
@@ -43,8 +42,8 @@ interface PlayerDetails {
 
 // The parseAiResponse on the client side is mostly for fallback or if we want to re-parse.
 // In this setup, the server-side API already parses and sends structured data.
-// So, this client-side parser can be simplified or even removed if you trust the API's structure.
-// However, keeping it for robustness is fine, it just won't be used for `assignedAbilities` directly.
+// This function might not be strictly necessary if your /api/ai-overview always returns structured JSON.
+// Keeping it for robustness if there are cases where raw text might be received.
 const parseAiResponse = (fullText: string) => {
     const overviewSection = fullText.split('## OVERVIEW ##')[1]?.split('## RATINGS ##')[0]?.trim();
     const ratingsSection = fullText.split('## RATINGS ##')[1]?.split('## ASSESSMENT ##')[0]?.trim();
@@ -74,6 +73,8 @@ const parseAiResponse = (fullText: string) => {
         }
     }
 
+    // Note: assignedAbilities are expected to come directly as structured JSON from the API,
+    // so this client-side parser doesn't handle them.
     return { overview, ratings };
 };
 
@@ -81,15 +82,15 @@ const parseAiResponse = (fullText: string) => {
 export default function PlayerDetailPage() {
     const searchParams = useSearchParams();
 
+    // Initialize with default values. Some player fields can be null from CFBD.
     const [playerDetails, setPlayerDetails] = useState<PlayerDetails>({
         player: {
             id: '', firstName: '', lastName: '', name: '', position: '',
-            height: 0, weight: 0, jersey: 0, hometown: '', team: '',
+            height: null, weight: null, jersey: null, hometown: null, team: '',
             teamColor: '', teamLogo: '', teamAlternateColor: '', teamDarkLogo: ''
         },
         aiOverview: 'Loading AI Overview...',
         aiRatings: [],
-        // NEW: Initialize assignedAbilities
         assignedAbilities: [],
         loading: true,
         error: null,
@@ -97,7 +98,7 @@ export default function PlayerDetailPage() {
 
     const fetchTeamDetails = async (teamName: string) => {
         try {
-            const teamsProxyUrl = `/api/cfbd-proxy?target=teams&year=2024`;
+            const teamsProxyUrl = `/api/cfbd-proxy?target=teams&year=2024`; // Assuming year 2024 for team data
             const teamsResponse = await fetch(teamsProxyUrl);
 
             if (teamsResponse.ok) {
@@ -124,14 +125,17 @@ export default function PlayerDetailPage() {
         };
     };
 
-
     useEffect(() => {
         const fetchAllDetails = async () => {
             const playerString = searchParams.get('player');
             const year = searchParams.get('year');
 
             if (!playerString || !year) {
-                setPlayerDetails(prev => ({ ...prev, error: 'Player data or year missing. Please go back and select a player from the search results.', loading: false }));
+                setPlayerDetails(prev => ({
+                    ...prev,
+                    error: 'Player data or year missing. Please go back and select a player from the search results.',
+                    loading: false
+                }));
                 return;
             }
 
@@ -139,7 +143,7 @@ export default function PlayerDetailPage() {
                 const playerFromUrl: CfbdPlayer = JSON.parse(decodeURIComponent(playerString));
                 const teamInfo = await fetchTeamDetails(playerFromUrl.team);
 
-                const playerWithTeamDetails = {
+                const playerWithTeamDetails: CfbdPlayer = {
                     ...playerFromUrl,
                     teamColor: teamInfo.teamColor,
                     teamAlternateColor: teamInfo.teamAlternateColor,
@@ -147,9 +151,18 @@ export default function PlayerDetailPage() {
                     teamDarkLogo: teamInfo.teamDarkLogo,
                 };
 
-                setPlayerDetails(prev => ({ ...prev, player: playerWithTeamDetails, loading: true, error: null }));
+                // Set initial player data and indicate loading for AI content
+                setPlayerDetails(prev => ({
+                    ...prev,
+                    player: playerWithTeamDetails,
+                    loading: true,
+                    error: null,
+                    aiOverview: 'Loading AI Overview...', // Reset message
+                    aiRatings: [], // Clear previous ratings
+                    assignedAbilities: [] // Clear previous abilities
+                }));
 
-                // Pointing to the new App Router API route
+                // Fetch AI overview, ratings, and abilities from your new API route
                 const response = await fetch('/api/ai-overview', {
                     method: 'POST',
                     headers: {
@@ -160,33 +173,48 @@ export default function PlayerDetailPage() {
 
                 if (response.ok) {
                     const data = await response.json();
-                    // NEW: Destructure assignedAbilities from the response data
+                    // Assuming the API now returns structured `overview`, `ratings`, and `assignedAbilities`
                     const { overview, ratings, assignedAbilities } = data;
-                    setPlayerDetails(prev => ({ ...prev, aiOverview: overview, aiRatings: ratings, assignedAbilities: assignedAbilities || [], loading: false }));
+
+                    setPlayerDetails(prev => ({
+                        ...prev,
+                        aiOverview: overview,
+                        aiRatings: ratings,
+                        assignedAbilities: assignedAbilities || [], // Ensure it's an array
+                        loading: false
+                    }));
                 } else {
                     const errorData = await response.json();
-                    setPlayerDetails(prev => ({ ...prev, error: `Failed to fetch AI overview: ${errorData.details || response.statusText}`, loading: false }));
+                    setPlayerDetails(prev => ({
+                        ...prev,
+                        error: `Failed to fetch AI overview: ${errorData.details || response.statusText}`,
+                        loading: false
+                    }));
                 }
             } catch (err: any) {
-                console.error("Error fetching player AI overview:", err);
-                setPlayerDetails(prev => ({ ...prev, error: `Error processing player data: ${err.message}. Please try again.`, loading: false }));
+                console.error("Error fetching player AI overview or details:", err);
+                setPlayerDetails(prev => ({
+                    ...prev,
+                    error: `Error processing player data: ${err.message}. Please try again.`,
+                    loading: false
+                }));
             }
         };
 
         fetchAllDetails();
     }, [searchParams]);
 
-    // NEW: Destructure assignedAbilities from playerDetails
+    // Destructure for easier access
     const { player, aiOverview, aiRatings, assignedAbilities, loading, error } = playerDetails;
 
-    // Helper function to get tier specific styling
+    // Helper function to get tier specific styling (using Tailwind CSS classes)
     const getTierColor = (tier: string) => {
         switch (tier) {
-            case 'Bronze': return 'text-amber-500'; // Or a custom bronze color
+            case 'Bronze': return 'text-amber-500';
             case 'Silver': return 'text-gray-400';
             case 'Gold': return 'text-yellow-500';
             case 'Platinum': return 'text-blue-400';
-            case 'X-Factor': return 'text-red-500'; // Or a vibrant unique color
+            case 'X-Factor': return 'text-red-500';
             default: return 'text-white';
         }
     };
@@ -213,15 +241,26 @@ export default function PlayerDetailPage() {
         );
     }
 
-    // These colors are used for the banner background as per your preference
-    const primaryColor = player.teamColor || '#00274c';
-    const alternateColor = player.teamAlternateColor || '#ffcb05';
+    // Format player height from inches to feet and inches
+    const playerHeightFeet = player.height ? Math.floor(player.height / 12) : null;
+    const playerHeightInches = player.height ? player.height % 12 : null;
+    const formattedHeight = playerHeightFeet !== null && playerHeightInches !== null
+        ? `${playerHeightFeet}'${playerHeightInches}"`
+        : 'N/A';
 
     return (
         <div className="min-h-screen bg-gray-900 text-white p-4 sm:p-8">
             <div className="max-w-4xl mx-auto bg-gray-800 rounded-lg shadow-lg overflow-hidden">
-                <div className="relative p-6 sm:p-8" style={{ background: `radial-gradient(circle at center, #E5E7EB, #111827)` }}>
-                    <div className="text-center pt-10 sm:pt-12 pb-4">
+                {/* Player Header Section - Updated to include core stats */}
+                <div className="relative p-6 sm:p-8 text-center" style={{ background: `radial-gradient(circle at center, #E5E7EB, #111827)` }}>
+                    <Link href="/" className="absolute top-4 left-4 text-blue-300 hover:text-blue-500 transition duration-300 flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                        </svg>
+                        Back to Player Search
+                    </Link>
+
+                    <div className="pt-10 sm:pt-12 pb-4">
                         {player.teamLogo && (
                             <Image
                                 src={player.teamLogo}
@@ -232,33 +271,39 @@ export default function PlayerDetailPage() {
                             />
                         )}
                         <h1 className="text-3xl sm:text-4xl font-bold mb-2">{player.name.toUpperCase()}</h1>
-                        <p className="text-lg sm:text-xl">{player.team} | {player.position} | {searchParams.get('year')}</p>
+                        <p className="text-lg sm:text-xl text-gray-300">
+                            {player.team || 'N/A Team'} | {player.position || 'N/A Pos'} | {searchParams.get('year') || 'N/A Season'}
+                        </p>
+
+                        {/* Player Core Stats - Now within the header */}
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-x-6 gap-y-2 mt-6 text-base sm:text-lg justify-items-center">
+                            <p><strong>Jersey:</strong> {player.jersey ? `#${player.jersey}` : 'N/A'}</p>
+                            <p><strong>Height:</strong> {formattedHeight}</p>
+                            <p><strong>Weight:</strong> {player.weight ? `${player.weight} lbs` : 'N/A'}</p>
+                            <p><strong>Hometown:</strong> {player.hometown || 'N/A'}</p>
+                            <p><strong>Team:</strong> {player.team || 'N/A'}</p>
+                            {/* Grade Level: Not directly available from current API data */}
+                            {/* <p><strong>Grade:</strong> [N/A]</p> */}
+                        </div>
                     </div>
                 </div>
 
+                {/* Main Content Area */}
                 <div className="p-6 sm:p-8">
-                    <h2 className="text-xl sm:text-2xl font-semibold mb-4 text-blue-400">Player Profile</h2>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3 mb-8 text-base sm:text-lg">
-                        <p><strong>Position:</strong> {player.position || 'N/A'}</p>
-                        <p><strong>Jersey:</strong> {player.jersey ? `#${player.jersey}` : 'N/A'}</p>
-                        <p><strong>Height:</strong> {player.height ? `${Math.floor(player.height / 12)}'${player.height % 12}"` : 'N/A'}</p>
-                        <p><strong>Weight:</strong> {player.weight ? `${player.weight} lbs` : 'N/A'}</p>
-                        <p><strong>Hometown:</strong> {player.hometown || 'N/A'}</p>
-                        <p><strong>Team:</strong> {player.team || 'N/A'}</p>
-                    </div>
-
-                    <h2 className="text-xl sm:text-2xl font-semibold mt-6 mb-4 text-blue-400">AI Overview</h2>
-                    <div className="prose prose-invert max-w-2xl mx-auto text-base sm:text-lg leading-relaxed">
+                    {/* AI Overview Section */}
+                    <h2 className="text-xl sm:text-2xl font-semibold mb-4 text-blue-400">AI Overview for {player.name}</h2>
+                    <div className="prose prose-invert max-w-none text-base sm:text-lg leading-relaxed mb-8">
                         {aiOverview.split('\n').map((paragraph, index) => (
                             paragraph.trim() !== '' && <p key={index} className="mb-3">{paragraph.trim()}</p>
                         ))}
                         {aiOverview.trim() === '' && <p className="text-gray-400 italic">No detailed AI overview available for this player.</p>}
                     </div>
 
+                    {/* AI Ratings Section */}
                     {aiRatings.length > 0 && (
                         <>
-                            <h2 className="text-xl sm:text-2xl font-semibold mt-8 mb-4 text-blue-400">EA CFB 26 Hypothetical Ratings</h2>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-2 text-base sm:text-lg">
+                            <h2 className="text-xl sm:text-2xl font-semibold mt-6 mb-4 text-blue-400">EA CFB 26 Hypothetical Ratings</h2>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-2 text-base sm:text-lg mb-8">
                                 {aiRatings.map((rating, index) => (
                                     <p key={index} className="text-gray-300">{rating}</p>
                                 ))}
@@ -266,18 +311,18 @@ export default function PlayerDetailPage() {
                         </>
                     )}
                     {aiRatings.length === 0 && !loading && (
-                        <p className="mt-8 text-gray-400 italic">No hypothetical ratings available for this player.</p>
+                        <p className="mt-8 text-gray-400 italic mb-8">No hypothetical ratings available for this player.</p>
                     )}
 
-                    {/* NEW SECTION: Player Abilities */}
+                    {/* Player Abilities Section */}
                     {assignedAbilities.length > 0 && (
                         <>
-                            <h2 className="text-xl sm:text-2xl font-semibold mt-8 mb-4 text-blue-400">Player Abilities</h2>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <h2 className="text-xl sm:text-2xl font-semibold mt-6 mb-4 text-blue-400">Player Abilities</h2>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
                                 {assignedAbilities.map((ability, index) => (
                                     <div key={index} className="bg-gray-700 p-4 rounded-lg shadow-md">
                                         <h3 className={`text-lg font-bold mb-1 ${getTierColor(ability.tier)}`}>
-                                            {ability.name} <span className="text-sm font-normal">({ability.tier})</span>
+                                            {ability.name} <span className="text-sm font-normal text-gray-300">({ability.tier})</span>
                                         </h3>
                                         <p className="text-gray-300 text-sm">{ability.description}</p>
                                     </div>
@@ -286,9 +331,10 @@ export default function PlayerDetailPage() {
                         </>
                     )}
                     {assignedAbilities.length === 0 && !loading && (
-                        <p className="mt-8 text-gray-400 italic">No special abilities assigned to this player.</p>
+                        <p className="mt-8 text-gray-400 italic mb-8">No special abilities assigned to this player.</p>
                     )}
 
+                    {/* Back to Search Button at the bottom */}
                     <div className="mt-8 text-center">
                         <Link
                             href="/"

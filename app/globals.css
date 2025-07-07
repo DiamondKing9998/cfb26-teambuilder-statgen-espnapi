@@ -6,368 +6,410 @@
 
 /* Define CSS Variables for your theme colors */
 :root {
-  --color-primary: #FF4500; /* OrangeRed - New Primary */
-  --color-secondary: #0000FF; /* Pure Blue - New Secondary */
+    --color-primary: #FF4500; /* OrangeRed - New Primary */
+    --color-secondary: #0000FF; /* Pure Blue - New Secondary */
 
-  /* Dark Theme Colors */
-  --color-background-dark: #1A202C; /* Main dark gray background */
-  --color-card-bg: #2D3748; /* Slightly lighter dark gray for cards/sections */
-  --color-text-default: #E2E8F0; /* Off-white text for dark backgrounds */
-  --color-text-muted: #A0AEC0; /* Muted light text for descriptions/less important info */
+    /* Dark Theme Colors */
+    --color-background-dark: #1A202C; /* Main dark gray background */
+    --color-card-bg: #2D3748; /* Slightly lighter dark gray for cards/sections */
+    --color-text-default: #E2E8F0; /* Off-white text for dark backgrounds */
+    --color-text-muted: #A0AEC0; /* Muted light text for descriptions/less important info */
 
-  /* Accent Colors */
-  --color-accent-green: #28a745; /* Success green (kept) */
-  --color-accent-purple: #7B68EE; /* Medium Slate Blue for header gradient (adjusted from old deep purple) */
-  --color-accent-blue-hint: #4A90E2; /* A subtle blue for general hints/borders */
+    /* Accent Colors */
+    --color-accent-green: #28a745; /* Success green (kept) */
+    --color-accent-purple: #7B68EE; /* Medium Slate Blue for header gradient (adjusted from old deep purple) */
+    --color-accent-blue-hint: #4A90E2; /* A subtle blue for general hints/borders */
 
-  /* Specific Component Colors */
-  --color-success: #28a745; /* For successful actions/messages (kept) */
-  --color-error-bg: #4A1B1B; /* Darker red for error message backgrounds */
-  --color-error-text: #FF6666; /* Lighter red for error message text */
-  --color-input-bg: #2C333F; /* Darker background for input fields */
-  --color-input-border: #4A90E2; /* Blue hint for input borders */
-  --color-border-dark: rgba(255, 255, 255, 0.1); /* Subtle white border for dark theme elements */
-  --color-shadow-dark: rgba(0, 0, 0, 0.4); /* Darker shadow for dark theme elements */
+    /* Specific Component Colors */
+    --color-success: #28a745; /* For successful actions/messages (kept) */
+    --color-error-bg: #4A1B1B; /* Darker red for error message backgrounds */
+    --color-error-text: #FF6666; /* Lighter red for error message text */
+    --color-input-bg: #2C333F; /* Darker background for input fields */
+    --color-input-border: #4A90E2; /* Blue hint for input borders */
+    --color-border-dark: rgba(255, 255, 255, 0.1); /* Subtle white border for dark theme elements */
+    --color-shadow-dark: rgba(0, 0, 0, 0.4); /* Darker shadow for dark theme elements */
 
-  /* AI Overview Box Colors */
-  --color-ai-box-bg: #1E2B3A; /* Dark blue-gray for AI box background */
-  --color-ai-box-border: #4A90E2; /* Blue hint for AI box border */
-  --color-ai-box-text: #ADD8E6; /* Light blue for AI box text */
+    /* AI Overview Box Colors (used for placeholder boxes now) */
+    --color-ai-box-bg: #1E2B3A; /* Dark blue-gray for AI box background */
+    --color-ai-box-border: #4A90E2; /* Blue hint for AI box border */
+    --color-ai-box-text: #ADD8E6; /* Light blue for AI box text */
 
-  /* Footer Color */
-  --color-footer-bg: #0F141A; /* Even darker shade for the footer */
+    /* Footer Color */
+    --color-footer-bg: #0F141A; /* Even darker shade for the footer */
+
+    /* General Radii */
+    --border-radius: 0.75rem; /* A common border radius, ~12px for rounded-lg */
 }
 
 /* Base styles for the entire body */
 html, body {
-  /* Assuming --font-inter and --font-bebas-neue are defined in layout.tsx or similar. */
-  font-family: var(--font-inter), sans-serif;
-  margin: 0;
-  padding: 0;
-  background-color: var(--color-background-dark); /* Apply new dark background */
-  color: var(--color-text-default); /* Apply new default text color */
-  display: flex;
-  flex-direction: column;
-  min-height: 100vh;
-  line-height: 1.6;
-  font-size: 16px;
-  /* Optional: Set a smooth transition for theme changes if you implement a toggle */
-  transition: background-color 0.3s ease, color 0.3s ease;
+    /* Assuming --font-inter and --font-bebas-neue are defined in layout.tsx or similar. */
+    font-family: var(--font-inter), sans-serif;
+    margin: 0;
+    padding: 0;
+    background-color: var(--color-background-dark); /* Apply new dark background */
+    color: var(--color-text-default); /* Apply new default text color */
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    line-height: 1.6;
+    font-size: 16px;
+    /* Optional: Set a smooth transition for theme changes if you implement a toggle */
+    transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 /* --- Apply Bebas Neue to headings for a "sports" feel --- */
 h1, h2, h3, h4, h5, h6,
 header h1,
 .filter-sidebar h2 {
-  font-family: var(--font-bebas-neue), sans-serif;
-  letter-spacing: 0.05em; /* Add a little spacing for Bebas Neue */
-  text-transform: uppercase; /* Common for sports fonts */
+    font-family: var(--font-bebas-neue), sans-serif;
+    letter-spacing: 0.05em; /* Add a little spacing for Bebas Neue */
+    text-transform: uppercase; /* Common for sports fonts */
 }
 
 /* --- App Structure and Layout --- */
 .App {
-  display: flex;
-  flex-direction: column;
-  min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
 }
 
+/* Main Application Header (top of search page) */
 header {
-  /* Updated gradient to use new primary and adjusted purple */
-  background-image: linear-gradient(to right, var(--color-primary), var(--color-accent-purple));
-  color: var(--color-text-default); /* Use default light text */
-  padding: 25px 20px;
-  text-align: center;
-  font-size: 1.8em;
-  box-shadow: 0 4px 10px var(--color-shadow-dark); /* Darker shadow */
-  margin-bottom: 20px;
+    /* Updated gradient to use new primary and adjusted purple */
+    background-image: linear-gradient(to right, var(--color-primary), var(--color-accent-purple));
+    color: var(--color-text-default); /* Use default light text */
+    padding: 25px 20px;
+    text-align: center;
+    font-size: 1.8em;
+    box-shadow: 0 4px 10px var(--color-shadow-dark); /* Darker shadow */
+    margin-bottom: 20px;
 }
 
 header h1 {
-  margin: 0;
-  font-size: 2.2em;
-  text-shadow: 1px 1px 2px rgba(0,0,0,0.5); /* Slightly stronger text shadow for contrast */
+    margin: 0;
+    font-size: 2.2em;
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.5); /* Slightly stronger text shadow for contrast */
 }
 
 header p {
-  margin: 5px 0 0;
-  font-size: 0.9em;
-  opacity: 0.9;
+    margin: 5px 0 0;
+    font-size: 0.9em;
+    opacity: 0.9;
 }
 
 .main-container {
-  display: flex;
-  flex-grow: 1; /* Allows it to take up remaining vertical space */
-  padding: 20px;
-  gap: 20px; /* Space between filter sidebar and results */
+    display: flex;
+    flex-grow: 1; /* Allows it to take up remaining vertical space */
+    padding: 20px;
+    gap: 20px; /* Space between filter sidebar and results */
 }
 
 .filter-sidebar {
-  flex: 0 0 350px; /* Fixed width for desktop, but allows shrinking */
-  background-color: var(--color-card-bg); /* Use new dark card background */
-  border-radius: 12px;
-  box-shadow: 0 6px 15px var(--color-shadow-dark); /* Darker shadow */
-  padding: 30px;
-  display: flex;
-  flex-direction: column;
-  gap: 25px; /* Space between filter groups */
-  border: 1px solid var(--color-border-dark); /* Dark theme border */
+    flex: 0 0 350px; /* Fixed width for desktop, but allows shrinking */
+    background-color: var(--color-card-bg); /* Use new dark card background */
+    border-radius: var(--border-radius); /* Use variable */
+    box-shadow: 0 6px 15px var(--color-shadow-dark); /* Darker shadow */
+    padding: 30px;
+    display: flex;
+    flex-direction: column;
+    gap: 25px; /* Space between filter groups */
+    border: 1px solid var(--color-border-dark); /* Dark theme border */
 }
 
 .filter-form {
-  display: flex;
-  flex-direction: column;
-  gap: 25px;
-  flex-grow: 1; /* Make the form fill the sidebar */
+    display: flex;
+    flex-direction: column;
+    gap: 25px;
+    flex-grow: 1; /* Make the form fill the sidebar */
 }
 
 .filter-group {
-  border-bottom: 2px solid var(--color-background-dark); /* Use main dark background for separation */
-  padding-bottom: 20px;
+    border-bottom: 2px solid var(--color-background-dark); /* Use main dark background for separation */
+    padding-bottom: 20px;
 }
 
 .filter-group:last-of-type {
-  border-bottom: none;
-  padding-bottom: 0;
+    border-bottom: none;
+    padding-bottom: 0;
 }
 
 .filter-group h3 {
-  margin-top: 0;
-  margin-bottom: 12px;
-  color: var(--color-primary); /* Uses new primary color */
-  font-size: 1.25em;
-  font-weight: 600;
+    margin-top: 0;
+    margin-bottom: 12px;
+    color: var(--color-primary); /* Uses new primary color */
+    font-size: 1.25em;
+    font-weight: 600;
 }
 
 .filter-group select,
 .filter-group input[type="text"] {
-  width: 100%;
-  padding: 12px;
-  border: 2px solid var(--color-input-border); /* Use new blue hint for borders */
-  border-radius: 8px;
-  background-color: var(--color-input-bg); /* New dark background for inputs */
-  font-size: 1.05em;
-  color: var(--color-text-default); /* Use default light text for input */
-  transition: all 0.3s ease;
+    width: 100%;
+    padding: 12px;
+    border: 2px solid var(--color-input-border); /* Use new blue hint for borders */
+    border-radius: 8px;
+    background-color: var(--color-input-bg); /* New dark background for inputs */
+    font-size: 1.05em;
+    color: var(--color-text-default); /* Use default light text for input */
+    transition: all 0.3s ease;
 }
 
 /* Specific styling for select dropdown arrow */
 .filter-group select {
-  appearance: none;
-  -webkit-appearance: none;
-  -moz-appearance: none;
-  /* Updated SVG fill color for dark theme dropdown arrow */
-  background-image: url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23E2E8F0%22%20d%3D%22M287%2069.4L146.2%20209.2%205.4%2069.4c-6.8-6.8-17.7-6.8-24.5%200s-6.8%2017.7%200%2024.5l141.6%20141.6c6.8%206.8%2017.7%206.8%2024.5%200L287%2093.9c6.9-6.8%206.9-17.7.1-24.5z%22%2F%3E%3C%2Fsvg%3E');
-  background-repeat: no-repeat;
-  background-position: right 15px center;
-  background-size: 1em;
-  cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    /* Updated SVG fill color for dark theme dropdown arrow */
+    background-image: url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23E2E8F0%22%20d%3D%22M287%2069.4L146.2%20209.2%205.4%2069.4c-6.8-6.8-17.7-6.8-24.5%200s-6.8%2017.7%200%2024.5l141.6%20141.6c6.8%206.8%2017.7%206.8%2024.5%200L287%2093.9c6.9-6.8%206.9-17.7.1-24.5z%22%2F%3E%3C%2Fsvg%3E');
+    background-repeat: no-repeat;
+    background-position: right 15px center;
+    background-size: 1em;
+    cursor: pointer;
 }
 
 .filter-group select:focus,
 .filter-group input[type="text"]:focus {
-  outline: none;
-  border-color: var(--color-secondary); /* Uses new secondary color */
-  box-shadow: 0 0 0 3px rgba(0, 0, 255, 0.3); /* Adjusted shadow for new secondary blue */
+    outline: none;
+    border-color: var(--color-secondary); /* Uses new secondary color */
+    box-shadow: 0 0 0 3px rgba(0, 0, 255, 0.3); /* Adjusted shadow for new secondary blue */
 }
 
 .button-group {
-  display: flex;
-  gap: 15px; /* Space between buttons */
-  margin-top: auto; /* Push buttons to the bottom of the sidebar */
-  padding-top: 10px; /* Add some padding above buttons */
-  border-top: 2px solid var(--color-background-dark); /* Dark theme border */
+    display: flex;
+    gap: 15px; /* Space between buttons */
+    margin-top: auto; /* Push buttons to the bottom of the sidebar */
+    padding-top: 10px; /* Add some padding above buttons */
+    border-top: 2px solid var(--color-background-dark); /* Dark theme border */
 }
 
 .submit-button,
 .reset-button {
-  flex: 1; /* Make buttons take equal width */
-  padding: 14px 20px; /* Larger padding for buttons */
-  border: none;
-  border-radius: 8px;
-  font-size: 1.1em;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background-color 0.3s ease, transform 0.1s ease;
-  box-shadow: 0 2px 5px var(--color-shadow-dark); /* Darker shadow */
+    flex: 1; /* Make buttons take equal width */
+    padding: 14px 20px; /* Larger padding for buttons */
+    border: none;
+    border-radius: 8px;
+    font-size: 1.1em;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.3s ease, transform 0.1s ease;
+    box-shadow: 0 2px 5px var(--color-shadow-dark); /* Darker shadow */
 }
 
 .submit-button {
-  background-color: var(--color-accent-green); /* Green for submit (kept) */
-  color: white;
+    background-color: var(--color-accent-green); /* Green for submit (kept) */
+    color: white;
 }
 
 .submit-button:hover {
-  background-color: #218838; /* Darker green on hover (kept) */
-  transform: translateY(-1px);
+    background-color: #218838; /* Darker green on hover (kept) */
+    transform: translateY(-1px);
 }
 
 .reset-button {
-  background-color: #6c757d; /* Muted gray for reset (kept) */
-  color: white;
+    background-color: #6c757d; /* Muted gray for reset (kept) */
+    color: white;
 }
 
 .reset-button:hover {
-  background-color: #5a6268; /* Darker gray on hover (kept) */
-  transform: translateY(-1px);
+    background-color: #5a6268; /* Darker gray on hover (kept) */
+    transform: translateY(-1px);
 }
 
 .player-results {
-  flex-grow: 1; /* Takes up remaining horizontal space */
-  background-color: var(--color-card-bg); /* Use new dark card background */
-  border-radius: 12px;
-  box-shadow: 0 6px 15px var(--color-shadow-dark); /* Darker shadow */
-  padding: 30px;
-  min-height: 200px; /* Ensure it has some height even when empty */
-  display: flex;
-  flex-direction: column;
+    flex-grow: 1; /* Takes up remaining horizontal space */
+    background-color: var(--color-card-bg); /* Use new dark card background */
+    border-radius: var(--border-radius); /* Use variable */
+    box-shadow: 0 6px 15px var(--color-shadow-dark); /* Darker shadow */
+    padding: 30px;
+    min-height: 200px; /* Ensure it has some height even when empty */
+    display: flex;
+    flex-direction: column;
 }
 
 .player-results h2 {
-  margin-top: 0;
-  margin-bottom: 20px;
-  color: var(--color-primary); /* Uses new primary color */
-  font-size: 1.8em;
-  text-align: center;
+    margin-top: 0;
+    margin-bottom: 20px;
+    color: var(--color-primary); /* Uses new primary color */
+    font-size: 1.8em;
+    text-align: center;
 }
 
 .player-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); /* Slightly wider cards */
-  gap: 20px;
-  flex-grow: 1; /* Allow grid to grow */
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); /* Slightly wider cards */
+    gap: 20px;
+    flex-grow: 1; /* Allow grid to grow */
 }
 
 .player-card {
-  border: 1px solid var(--color-border-dark); /* New dark theme border */
-  border-radius: 10px; /* Slightly more rounded */
-  padding: 18px;
-  text-align: center;
-  background-color: var(--color-card-bg); /* Use new dark card background */
-  box-shadow: 0 2px 8px var(--color-shadow-dark); /* Darker shadow */
-  transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+    border: 1px solid var(--color-border-dark); /* New dark theme border */
+    border-radius: 10px; /* Slightly more rounded */
+    padding: 18px;
+    text-align: center;
+    background-color: var(--color-card-bg); /* Use new dark card background */
+    box-shadow: 0 2px 8px var(--color-shadow-dark); /* Darker shadow */
+    transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
 }
 
 .player-card:hover {
-  transform: translateY(-4px); /* More pronounced lift */
-  box-shadow: 0 8px 16px var(--color-shadow-dark); /* More prominent shadow on hover */
+    transform: translateY(-4px); /* More pronounced lift */
+    box-shadow: 0 8px 16px var(--color-shadow-dark); /* More prominent shadow on hover */
 }
 
 .player-card h4 {
-  margin-top: 0;
-  margin-bottom: 8px;
-  color: var(--color-text-default); /* Use default light text */
-  font-size: 1.3em;
+    margin-top: 0;
+    margin-bottom: 8px;
+    color: var(--color-text-default); /* Use default light text */
+    font-size: 1.3em;
 }
 
 .player-card p {
-  margin: 4px 0;
-  color: var(--color-text-muted); /* Use muted light text */
-  font-size: 0.9em;
+    margin: 4px 0;
+    color: var(--color-text-muted); /* Use muted light text */
+    font-size: 0.9em;
 }
 
 .loading-message,
 .error-message {
-  text-align: center;
-  padding: 20px;
-  font-style: italic;
-  font-size: 1.1em;
+    text-align: center;
+    padding: 20px;
+    font-style: italic;
+    font-size: 1.1em;
 }
 
 .loading-message {
-  color: var(--color-text-muted); /* Use muted light text */
+    color: var(--color-text-muted); /* Use muted light text */
 }
 
 .error-message {
-  color: var(--color-error-text); /* Use new error text color */
-  font-weight: bold;
+    color: var(--color-error-text); /* Use new error text color */
+    font-weight: bold;
 }
 
 footer {
-  background-color: var(--color-footer-bg); /* Use new very dark background for footer */
-  color: var(--color-text-default); /* Use default light text */
-  text-align: center;
-  padding: 15px 20px;
-  margin-top: 30px;
-  box-shadow: 0 -2px 5px var(--color-shadow-dark); /* Darker shadow */
+    background-color: var(--color-footer-bg); /* Use new very dark background for footer */
+    color: var(--color-text-default); /* Use default light text */
+    text-align: center;
+    padding: 15px 20px;
+    margin-top: 30px;
+    box-shadow: 0 -2px 5px var(--color-shadow-dark); /* Darker shadow */
 }
+
+/* --- Player Profile Page Specific Styles --- */
+/* The main header for the player detail page */
+/* Note: The background gradient for .player-profile-header is handled inline in page.tsx for specific control */
+.player-profile-header {
+    /* Using background property from page.tsx inline style for the radial gradient */
+    color: var(--color-text-default);
+    padding: 2rem;
+    text-align: center;
+    border-radius: var(--border-radius);
+    margin-bottom: 2rem;
+    position: relative; /* For positioning the back link */
+}
+
+.player-profile-header .back-link {
+    /* Styles are mostly handled by Tailwind classes directly in page.tsx:
+       `absolute top-4 left-4 text-blue-300 hover:text-blue-500` */
+    text-decoration: none;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    transition: color 0.2s ease-in-out;
+}
+
+/* No specific arrow-icon class needed as it's an SVG */
+
+.player-profile-header .player-name {
+    font-size: 3rem; /* Larger font for the main name */
+    margin-bottom: 0.5rem;
+    color: var(--color-text-default); /* Default text color for the name */
+}
+
+.player-profile-header .player-subtitle {
+    font-size: 1.25rem;
+    color: var(--color-text-muted); /* Muted color for team/position/year */
+    margin-bottom: 1.5rem;
+}
+
+.player-profile-header .player-stats-grid {
+    display: grid; /* Changed from flex to grid for clearer columns */
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); /* Responsive grid for stats */
+    justify-items: center; /* Center items within grid columns */
+    gap: 1rem; /* Space between stat items */
+    margin-top: 1.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.1); /* Subtle separator */
+}
+
+.player-profile-header .stat-item {
+    font-size: 1rem;
+    margin: 0;
+    white-space: nowrap; /* Prevent stats from breaking onto multiple lines if possible */
+    color: var(--color-text-default);
+}
+
+.player-profile-header .stat-item strong {
+    color: var(--color-primary); /* Your primary orange for stat labels */
+}
+
+/* Section Titles (e.g., AI Overview, Career Statistics) on player detail page */
+.text-blue-400 { /* This is a Tailwind class, but for clarity, ensure its use */
+    /* This rule ensures that Tailwind's `text-blue-400` which is used for section titles
+       like "AI Overview" remains consistent with your theme. No direct CSS variables needed here
+       if Tailwind is controlling it. */
+}
+
+/* Placeholder text for AI and Stats */
+.ai-text-placeholder, .stats-placeholder {
+    color: var(--color-text-muted);
+    font-style: italic;
+    padding: 1rem;
+    background-color: var(--color-ai-box-bg); /* Use AI box background */
+    border-radius: var(--border-radius);
+    margin-bottom: 2rem; /* Space between sections */
+    border: 1px solid var(--color-ai-box-border); /* Use AI box border */
+}
+
 
 /* Mobile Responsiveness */
 @media (max-width: 768px) {
-  .main-container {
-    flex-direction: column;
-    align-items: center;
-    padding: 15px;
-  }
+    .main-container {
+        flex-direction: column;
+        align-items: center;
+        padding: 15px;
+    }
 
-  .filter-sidebar {
-    flex: 0 0 auto;
-    width: 100%;
-    max-width: 380px; /* Max width for sidebar on mobile */
-    margin-bottom: 20px;
-    padding: 25px 20px;
-  }
+    .filter-sidebar {
+        flex: 0 0 auto;
+        width: 100%;
+        max-width: 380px; /* Max width for sidebar on mobile */
+        margin-bottom: 20px;
+        padding: 25px 20px;
+    }
 
-  .player-results {
-    width: 100%;
-    max-width: 380px; /* Max width for results on mobile */
-    padding: 25px 20px;
-  }
+    .player-results {
+        width: 100%;
+        max-width: 380px; /* Max width for results on mobile */
+        padding: 25px 20px;
+    }
 
-  header h1 {
-    font-size: 1.8em;
-  }
+    header h1 {
+        font-size: 1.8em;
+    }
 
-  /* Styles for the AI overview button (inside player-card in your original CSS, likely for a button on the card) */
-  .player-card button {
-    margin-top: 15px;
-    padding: 8px 15px;
-    background-color: var(--color-secondary); /* Use new secondary color */
-    color: white;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 0.9em;
-    transition: background-color 0.2s ease;
-  }
-
-  .player-card button:hover:not(:disabled) {
-    background-color: #0000CC; /* Slightly darker blue on hover */
-  }
-
-  .player-card button:disabled {
-    background-color: #6c757d; /* Grey when disabled (matches reset button) */
-    cursor: not-allowed;
-  }
-
-  /* Styles for the AI overview display box */
-  .ai-overview-box {
-    margin-top: 15px;
-    padding: 10px;
-    background-color: var(--color-ai-box-bg); /* Use new dark AI box background */
-    border: 1px solid var(--color-ai-box-border); /* Use new AI box border color */
-    border-radius: 5px;
-    font-size: 0.85em;
-    text-align: left;
-    white-space: pre-wrap; /* Preserves line breaks from AI response */
-    word-wrap: break-word; /* Breaks long words */
-    color: var(--color-ai-box-text); /* Use new AI box text color */
-  }
-
-  .ai-overview-box h5 {
-    margin-top: 0;
-    margin-bottom: 5px;
-    color: var(--color-text-default); /* Use default light text for heading */
-  }
-
-  /* Styles for AI error messages */
-  .ai-error-message {
-    margin-top: 15px;
-    padding: 10px;
-    background-color: var(--color-error-bg); /* Use new dark error background */
-    border: 1px solid var(--color-error-text); /* Use new error text color for border */
-    border-radius: 5px;
-    color: var(--color-error-text); /* Use new error text color */
-    font-size: 0.85em;
-    text-align: left;
-  }
+    /* Player Profile Page responsiveness */
+    .player-profile-header .player-name {
+        font-size: 2rem;
+    }
+    .player-profile-header .player-subtitle {
+        font-size: 1rem;
+    }
+    .player-profile-header .player-stats-grid {
+        grid-template-columns: 1fr; /* Stack stats vertically on small screens */
+    }
+    .player-profile-header .stat-item {
+        text-align: center; /* Center stacked stats */
+    }
 }
