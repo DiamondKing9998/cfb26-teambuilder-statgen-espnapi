@@ -36,26 +36,34 @@ interface AssignedAbility {
 interface PlayerDetailsState {
     player: CfbdPlayer | null; // Player can be null initially or if not found
     aiOverview: string;
-    aiRatings: string[] | { category: string; stats: string }[]; // Allow array of strings OR objects
+    aiRatings: string[] | { category: string; stats: string }[]; // Updated: Allow array of strings OR array of objects
     assignedAbilities: AssignedAbility[];
     loading: boolean;
     error: string | null;
 }
 
+// *** IMPORTANT: The parseAiResponse function has been REMOVED. ***
+// Your /api/ai-overview endpoint is now expected to return structured JSON
+// with 'aiOverview', 'aiRatings', and 'assignedAbilities' properties already parsed.
+// Attempting to use a client-side parser on the already-parsed AI overview string
+// (as was the case with `data.aiOverview` in the previous code) would cause the 'split' error.
+
 export default function PlayerDetailPage() {
-    const searchParams = useSearchParams();
+    const searchParams = useSearchParams(); // Correctly uses searchParams for query parameters
 
     const [playerDetails, setPlayerDetails] = useState<PlayerDetailsState>({
-        player: null,
-        aiOverview: 'Generating AI Overview...',
+        player: null, // Initialize player as null
+        aiOverview: 'Generating AI Overview...', // Initial message while AI data loads
         aiRatings: [],
         assignedAbilities: [],
         loading: true,
         error: null,
     });
 
+    // Memoize fetchTeamDetails to prevent unnecessary re-creations and re-fetches
     const fetchTeamDetails = useCallback(async (teamName: string) => {
         try {
+            // Using a fixed year for team details for consistent logo/colors
             const teamsProxyUrl = `/api/cfbd-proxy?target=teams&year=2024`;
             const teamsResponse = await fetch(teamsProxyUrl);
 
@@ -74,14 +82,16 @@ export default function PlayerDetailPage() {
             }
         } catch (error) {
             console.error("Error fetching team details:", error);
+            // Don't rethrow; return fallback colors/logos if fetch fails
         }
+        // Fallback colors if team details can't be fetched or team not found
         return {
-            teamColor: '#4A5568',
-            teamAlternateColor: '#A0AEC0',
+            teamColor: '#4A5568', // bg-gray-700 fallback
+            teamAlternateColor: '#A0AEC0', // bg-gray-400 fallback
             teamLogo: '',
             teamDarkLogo: '',
         };
-    }, []);
+    }, []); // No dependencies for useCallback as the URL for teamsProxyUrl is static
 
     useEffect(() => {
         const fetchAllDetails = async () => {
@@ -98,9 +108,13 @@ export default function PlayerDetailPage() {
             }
 
             try {
+                // Parse player data from URL query string
                 const playerFromUrl: CfbdPlayer = JSON.parse(decodeURIComponent(playerString));
+
+                // Fetch team specific details (colors, logos)
                 const teamInfo = await fetchTeamDetails(playerFromUrl.team);
 
+                // Combine player data with fetched team details
                 const playerWithTeamDetails: CfbdPlayer = {
                     ...playerFromUrl,
                     teamColor: teamInfo.teamColor,
@@ -109,16 +123,18 @@ export default function PlayerDetailPage() {
                     teamDarkLogo: teamInfo.teamDarkLogo,
                 };
 
+                // Update state to show loading for AI data specifically
                 setPlayerDetails(prev => ({
                     ...prev,
                     player: playerWithTeamDetails,
-                    loading: true,
+                    loading: true, // Still loading for AI data
                     error: null,
-                    aiOverview: 'Generating AI Overview...',
+                    aiOverview: 'Generating AI Overview...', // Show a generating message
                     aiRatings: [],
                     assignedAbilities: []
                 }));
 
+                // Fetch AI overview, ratings, and abilities from your backend API
                 const response = await fetch('/api/ai-overview', {
                     method: 'POST',
                     headers: {
@@ -128,12 +144,13 @@ export default function PlayerDetailPage() {
                 });
 
                 if (response.ok) {
-                    const data = await response.json();
+                    const data = await response.json(); // Data is ALREADY structured JSON
 
+                    // CRITICAL FIX: Directly use properties from the JSON response
                     setPlayerDetails(prev => ({
                         ...prev,
                         aiOverview: data.aiOverview || 'No AI overview available.',
-                        aiRatings: data.aiRatings || [], // This is where the problematic data type for ratings comes from
+                        aiRatings: data.aiRatings || [],
                         assignedAbilities: data.assignedAbilities || [],
                         loading: false
                     }));
@@ -156,17 +173,19 @@ export default function PlayerDetailPage() {
         };
 
         fetchAllDetails();
-    }, [searchParams, fetchTeamDetails]);
+    }, [searchParams, fetchTeamDetails]); // Add fetchTeamDetails to dependencies
 
+    // Destructure for easier access
     const { player, aiOverview, aiRatings, assignedAbilities, loading, error } = playerDetails;
 
+    // Helper function to get tier specific styling (using Tailwind CSS classes)
     const getTierColor = (tier: string) => {
         switch (tier) {
             case 'Bronze': return 'text-amber-500';
             case 'Silver': return 'text-gray-400';
             case 'Gold': return 'text-yellow-500';
             case 'Platinum': return 'text-blue-400';
-            case 'X-Factor': return 'text-red-500';
+            case 'X-Factor': return 'text-red-500'; // Commonly used for X-Factor
             default: return 'text-white';
         }
     };
@@ -193,6 +212,8 @@ export default function PlayerDetailPage() {
         );
     }
 
+    // This case should ideally be caught by `if (error)` if player data is truly missing from URL.
+    // However, if player data from URL is invalid/incomplete, it could still be null after parsing.
     if (!player) {
         return (
             <div className="min-h-screen flex flex-col items-center justify-center bg-gray-900 text-white p-8">
@@ -204,20 +225,23 @@ export default function PlayerDetailPage() {
         );
     }
 
+    // Format player height from inches to feet and inches
     const playerHeightFeet = player.height ? Math.floor(player.height / 12) : null;
     const playerHeightInches = player.height ? player.height % 12 : null;
     const formattedHeight = playerHeightFeet !== null && playerHeightInches !== null
         ? `${playerHeightFeet}'${playerHeightInches}"`
         : 'N/A';
 
+    // Get the year from search params for display
     const displayYear = searchParams.get('year') || new Date().getFullYear().toString();
 
     return (
         <div className="min-h-screen bg-gray-900 text-white p-4 sm:p-8">
             <div className="max-w-4xl mx-auto bg-gray-800 rounded-lg shadow-lg overflow-hidden">
+                {/* Player Header Section - Dynamic background and text colors */}
                 <div
                     className="relative p-6 sm:p-8 text-center"
-                    style={{ backgroundColor: player.teamColor || '#000000' }}
+                    style={{ backgroundColor: player.teamColor || '#000000' }} // Set background to primary team color
                 >
                     <Link href="/" className="absolute top-4 left-4 text-white hover:text-gray-200 transition duration-300 flex items-center gap-2">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
@@ -235,38 +259,45 @@ export default function PlayerDetailPage() {
                                 height={120}
                                 className="mx-auto mb-4 bg-white p-2 rounded-full shadow-md"
                                 onError={(e) => {
+                                    // Fallback to teamDarkLogo or a generic default if primary logo fails
                                     const target = e.target as HTMLImageElement;
-                                    target.onerror = null;
-                                    target.src = player.teamDarkLogo || '/images/default-team-logo.png';
+                                    target.onerror = null; // Prevents infinite loop if fallback also fails
+                                    target.src = player.teamDarkLogo || '/images/default-team-logo.png'; // Path to a default logo if you have one
                                 }}
                             />
                         )}
                         <h1
                             className="text-3xl sm:text-4xl font-bold mb-2"
-                            style={{ color: player.teamAlternateColor || '#FFFFFF' }}
+                            style={{ color: player.teamAlternateColor || '#FFFFFF' }} // Set player name to secondary team color
                         >
                             {player.name.toUpperCase()}
                         </h1>
                         <p
                             className="text-lg sm:text-xl"
-                            style={{ color: player.teamAlternateColor || '#FFFFFF' }}
+                            style={{ color: player.teamAlternateColor || '#FFFFFF' }} // Set subtitle to secondary team color
                         >
                             {player.team || 'N/A Team'} | {player.position || 'N/A Pos'} | {displayYear} Season
                         </p>
 
+                        {/* Player Core Stats */}
                         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-x-6 gap-y-2 mt-6 text-base sm:text-lg justify-items-center text-white">
                             <p><strong>Jersey:</strong> {player.jersey ? `#${player.jersey}` : 'N/A'}</p>
                             <p><strong>Height:</strong> {formattedHeight}</p>
                             <p><strong>Weight:</strong> {player.weight ? `${player.weight} lbs` : 'N/A'}</p>
                             <p><strong>Hometown:</strong> {player.hometown || 'N/A'}</p>
                             <p><strong>Team:</strong> {player.team || 'N/A'}</p>
+                            {/* If you plan to add Grade Level, ensure your data source provides it */}
+                            {/* <p><strong>Grade:</strong> [N/A]</p> */}
                         </div>
                     </div>
                 </div>
 
+                {/* Main Content Area */}
                 <div className="p-6 sm:p-8">
+                    {/* AI Overview Section */}
                     <h2 className="text-xl sm:text-2xl font-semibold mb-4 text-blue-400">AI Overview for {player.name}</h2>
                     <div className="prose prose-invert max-w-none text-base sm:text-lg leading-relaxed mb-8">
+                        {/* Render overview, splitting by newlines for paragraph separation */}
                         {aiOverview.split('\n').map((paragraph, index) => (
                             paragraph.trim() !== '' && <p key={index} className="mb-3">{paragraph.trim()}</p>
                         ))}
@@ -279,7 +310,7 @@ export default function PlayerDetailPage() {
                             <h2 className="text-xl sm:text-2xl font-semibold mt-6 mb-4 text-blue-400">EA CFB 26 Hypothetical Ratings</h2>
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-2 text-base sm:text-lg mb-8">
                                 {aiRatings.map((rating, index) => {
-                                    // Check if 'rating' is an object with 'category' and 'stats' keys
+                                    // Defensive check: If 'rating' is an object (unexpected but causes the error)
                                     if (typeof rating === 'object' && rating !== null && 'category' in rating && 'stats' in rating) {
                                         const r = rating as { category: string; stats: string }; // Type assertion for clarity
                                         return (
@@ -288,7 +319,7 @@ export default function PlayerDetailPage() {
                                             </p>
                                         );
                                     }
-                                    // Otherwise, assume it's a string (the previously expected format)
+                                    // If 'rating' is a string (the expected format from previous backend discussions)
                                     return (
                                         <p key={index} className="text-gray-300">{rating}</p>
                                     );
@@ -318,6 +349,7 @@ export default function PlayerDetailPage() {
                         <p className="mt-8 text-gray-400 italic mb-8">No special abilities assigned to this player.</p>
                     )}
 
+                    {/* Back to Search Button at the bottom */}
                     <div className="mt-8 text-center">
                         <Link
                             href="/"
