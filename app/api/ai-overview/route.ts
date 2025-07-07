@@ -29,7 +29,6 @@ export async function POST(request: Request) {
         
         try {
             // --- UPDATED CFBD API URL to /stats/player/season ---
-            // This endpoint provides season stats for ALL players on a given team in a given year.
             const cfbdStatsUrl = `https://api.collegefootballdata.com/stats/player/season?year=${year}&team=${encodeURIComponent(teamName)}`;
             
             console.log(`Attempting to fetch ALL season stats for ${teamName} in ${year} from CFBD: ${cfbdStatsUrl}`);
@@ -45,21 +44,27 @@ export async function POST(request: Request) {
                 console.log("Raw ALL season stats data from CFBD:", allSeasonStats);
 
                 // --- Find the specific player's stats from the returned list ---
-                // Prefer matching by player ID if available, otherwise by name.
                 const targetPlayerStatsEntry = allSeasonStats.find((entry: any) => {
-                    // Normalize names for comparison
                     const entryPlayerName = (entry.player?.name || '').toLowerCase();
                     const targetPlayerNameLower = playerName.toLowerCase();
 
-                    // Match by ID first (more reliable) or by name
+                    // Prefer matching by player ID if available, otherwise by name.
                     return (player.id && entry.player?.id === player.id) || 
                            (entryPlayerName === targetPlayerNameLower);
                 });
 
+                // --- NEW CONSOLE.LOG FOR DEBUGGING ---
+                console.log("Target player stats entry found:", targetPlayerStatsEntry);
+
                 let statsData: any[] = [];
                 if (targetPlayerStatsEntry && targetPlayerStatsEntry.stats) {
-                    statsData = targetPlayerStatsEntry.stats; // This is the array of stat objects for the target player
-                    console.log(`Found stats for ${playerName}:`, statsData);
+                    statsData = targetPlayerStatsEntry.stats; 
+                    // --- EXISTING CONSOLE.LOG ---
+                    console.log(`Found stats for ${playerName}:`, statsData); 
+
+                    // --- NEW CONSOLE.LOG FOR DEBUGGING ---
+                    console.log("Extracted statsData for player:", statsData);
+
                 } else {
                     console.log(`No specific season stats entry found for ${playerName} in the team data.`);
                 }
@@ -141,7 +146,7 @@ export async function POST(request: Request) {
             cfbdStatsSummary += `\nError retrieving detailed stats from CollegeFootballData.com: ${cfbdError.message}.`;
         }
 
-        // --- OpenAI API Call (no changes here) ---
+        // --- OpenAI API Call ---
         const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
         if (!OPENAI_API_KEY) {
