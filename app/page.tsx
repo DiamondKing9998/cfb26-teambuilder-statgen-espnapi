@@ -18,9 +18,9 @@ interface CfbdPlayer {
     height: number | null; // e.g., 78 (inches)
     jersey: number | null; // e.g., 97
     position: string | null; // e.g., "DL"
-    hometown: string | null; // e.g., "Plymouth" (New field)
-    teamColor: string | null; // e.g., "#00274c" (New field)
-    teamColorSecondary: string | null; // e.g., "#ffcb05" (New field)
+    hometown: string | null; // e.g., "Plymouth"
+    teamColor: string | null; // e.g., "#00274c"
+    teamColorSecondary: string | null; // e.g., "#ffcb05"
 }
 
 // NEW INTERFACE: Added CfbdTeam definition for the teams API response
@@ -83,34 +83,32 @@ interface PlayerResultsProps {
     currentSearchYear: string; // Added to pass down to PlayerCard
 }
 
-// --- PlayerCard Component ---
+// --- PlayerCard Component (UPDATED: Hometown and Colors Removed) ---
 const PlayerCard: React.FC<PlayerCardProps> = ({ player, searchYear }) => {
-    // Use player.name if available, otherwise combine firstName and lastName
     const displayName = player.name || `${player.firstName || ''} ${player.lastName || ''}`.trim() || 'N/A Name';
 
     return (
         <div className="player-card">
             <h4>{displayName}</h4>
-            {/* Display searchYear instead of player.year */}
             <p>{player.team || 'N/A Team'} | {player.position || 'N/A Pos'} | {searchYear || 'N/A Season'}</p>
             {player.jersey && <p>Jersey: #{player.jersey}</p>}
             {player.height && player.weight && (
                 <p>Height: {Math.floor(player.height / 12)}'{player.height % 12}" | Weight: {player.weight} lbs</p>
             )}
-            {player.hometown && <p>Hometown: {player.hometown}</p>}
-            {player.teamColor && (
+            {/* REMOVED: {player.hometown && <p>Hometown: {player.hometown}</p>} */}
+            {/* REMOVED: {player.teamColor && (
                 <div style={{ display: 'flex', marginTop: '5px', gap: '5px', justifyContent: 'center' }}>
                     <div style={{ width: '20px', height: '20px', backgroundColor: player.teamColor, border: '1px solid #ddd' }} title="Primary Team Color"></div>
                     {player.teamColorSecondary && (
                         <div style={{ width: '20px', height: '20px', backgroundColor: player.teamColorSecondary, border: '1px solid #ddd' }} title="Secondary Team Color"></div>
                     )}
                 </div>
-            )}
+            )} */}
         </div>
     );
 };
 
-// --- PlayerResults Component ---
+// --- PlayerResults Component (no changes needed) ---
 const PlayerResults: React.FC<PlayerResultsProps> = ({ players, isLoadingPlayers, error, currentSearchYear }) => {
     if (isLoadingPlayers) {
         return (
@@ -145,7 +143,7 @@ const PlayerResults: React.FC<PlayerResultsProps> = ({ players, isLoadingPlayers
     );
 };
 
-// --- FilterSidebar Component (no changes needed here from previous version) ---
+// --- FilterSidebar Component (no changes needed) ---
 const FilterSidebar: React.FC<FilterSidebarProps> = ({
     onApplyFilters,
     colleges,
@@ -260,7 +258,7 @@ const FilterSidebar: React.FC<FilterSidebarProps> = ({
 };
 
 
-// --- Main App Component ---
+// --- Main App Component (no changes needed) ---
 const CollegeFootballApp: React.FC = () => {
     const [appliedFilters, setAppliedFilters] = useState({
         college: '',
@@ -281,7 +279,7 @@ const CollegeFootballApp: React.FC = () => {
     const [collegeNameToIdMap, setCollegeNameToIdMap] = useState<Map<string, number>>(new Map());
 
     // Keeping these here for the filter options fetch which still hits CFBD directly (client-side)
-    const CFBD_API_KEY = '92cDQTO7wJWHaqwFq9FBkJYIG/yWei+B5QihvcPX81fn332tSeamNOzyVT0FGUT9';
+    const CFBD_API_KEY = 'YOUR_ACTUAL_API_KEY'; // Make sure to use your actual API key here for filter options
     const CFBD_BASE_URL = 'https://api.collegefootballdata.com';
 
 
@@ -317,7 +315,7 @@ const CollegeFootballApp: React.FC = () => {
                     throw new Error(`Failed to load college teams from CFBD API for ${currentYearForTeams}. Status: ${teamsResponse.status}.`);
                 }
 
-                const teamsData: CfbdTeam[] = await teamsResponse.json(); // Now CfbdTeam is defined
+                const teamsData: CfbdTeam[] = await teamsResponse.json();
                 console.log("Raw teamsData from API (for filters):", teamsData);
 
                 const filteredTeams = teamsData.filter(
