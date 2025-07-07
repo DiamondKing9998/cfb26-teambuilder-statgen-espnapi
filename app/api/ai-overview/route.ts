@@ -461,7 +461,8 @@ export async function POST(req: NextRequest) {
         }
 
         // Ratings parsing (more robust for categories and individual stats)
-        const ratingsSectionMatch = aiResponseText.match(/## RATINGS ##\s*([\s\S]*?)(?=## ADDITIONAL PLAYER DETAILS ##|$)/); // Adjusted regex to stop before new section
+        // Adjusted regex to stop before NEW "## ADDITIONAL PLAYER DETAILS ##" section
+        const ratingsSectionMatch = aiResponseText.match(/## RATINGS ##\s*([\s\S]*?)(?=## ADDITIONAL PLAYER DETAILS ##|$)/);
         if (ratingsSectionMatch && ratingsSectionMatch[1]) {
             const rawRatingsContent = ratingsSectionMatch[1].trim();
             const categoryRegex = /###\s*(.*?)\s*###\s*\n([\s\S]*?)(?=(?:###|$))/g;
