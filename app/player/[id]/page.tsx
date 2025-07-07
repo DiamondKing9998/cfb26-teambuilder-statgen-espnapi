@@ -3,7 +3,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useSearchParams } from 'next/navigation'; // Only useSearchParams is needed for params
+import { useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
 
@@ -18,10 +18,10 @@ interface CfbdPlayer {
     jersey: number;
     hometown: string;
     team: string;
-    teamColor: string; // This would typically be from the /teams endpoint. We'll use a placeholder if not available.
-    teamLogo: string; // This would typically be from the /teams endpoint.
-    teamAlternateColor: string; // Also from /teams.
-    teamDarkLogo: string; // Also from /teams.
+    teamColor: string;
+    teamLogo: string;
+    teamAlternateColor: string;
+    teamDarkLogo: string;
 }
 
 interface PlayerDetails {
@@ -40,7 +40,6 @@ const parseAiResponse = (fullText: string) => {
     const ratings: string[] = [];
 
     if (overviewSection) {
-        // Updated regex to correctly remove the placeholder text, making it non-greedy
         overview = overviewSection.replace(/\[Generate 2-3 paragraphs for the player overview here\. If detailed statistics were not provided\s*.*?\]/s, '').trim();
     }
 
@@ -54,9 +53,9 @@ const parseAiResponse = (fullText: string) => {
             }
             if (inRatingsList && line.trim().startsWith('-')) {
                 ratings.push(line.trim());
-            } else if (inRatingsList && line.trim() === '') { // Allow empty lines within ratings block
+            } else if (inRatingsList && line.trim() === '') {
                 continue;
-            } else if (inRatingsList && !line.trim().startsWith('-') && line.trim() !== '') { // Stop if not a rating and not empty
+            } else if (inRatingsList && !line.trim().startsWith('-') && line.trim() !== '') {
                 break;
             }
         }
@@ -81,10 +80,9 @@ export default function PlayerDetailPage() {
         error: null,
     });
 
-    // Function to fetch team colors and logos
     const fetchTeamDetails = async (teamName: string) => {
         try {
-            const teamsProxyUrl = `/api/cfbd-proxy?target=teams&year=2024`; // Using current year for teams
+            const teamsProxyUrl = `/api/cfbd-proxy?target=teams&year=2024`;
             const teamsResponse = await fetch(teamsProxyUrl);
 
             if (teamsResponse.ok) {
@@ -103,7 +101,7 @@ export default function PlayerDetailPage() {
         } catch (error) {
             console.error("Error fetching team details:", error);
         }
-        return { // Default colors if fetch fails or team not found
+        return {
             teamColor: '#4A5568', // bg-gray-700 fallback
             teamAlternateColor: '#A0AEC0', // bg-gray-400 fallback
             teamLogo: '',
@@ -124,11 +122,8 @@ export default function PlayerDetailPage() {
 
             try {
                 const playerFromUrl: CfbdPlayer = JSON.parse(decodeURIComponent(playerString));
-
-                // Fetch team details (colors/logos)
                 const teamInfo = await fetchTeamDetails(playerFromUrl.team);
 
-                // Merge team info into player data
                 const playerWithTeamDetails = {
                     ...playerFromUrl,
                     teamColor: teamInfo.teamColor,
@@ -166,7 +161,7 @@ export default function PlayerDetailPage() {
         };
 
         fetchAllDetails();
-    }, [searchParams]); // Depend on searchParams to re-run if URL params change
+    }, [searchParams]);
 
     const { player, aiOverview, aiRatings, loading, error } = playerDetails;
 
@@ -192,24 +187,24 @@ export default function PlayerDetailPage() {
         );
     }
 
-    const primaryColor = player.teamColor || '#00274c'; // Default blue for Michigan-like teams
-    const alternateColor = player.teamAlternateColor || '#ffcb05'; // Default yellow
+    const primaryColor = player.teamColor || '#00274c';
+    const alternateColor = player.teamAlternateColor || '#ffcb05';
 
     return (
-        <div className="min-h-screen bg-gray-900 text-white p-4 sm:p-8"> {/* Added responsive padding */}
+        <div className="min-h-screen bg-gray-900 text-white p-4 sm:p-8">
             <div className="max-w-4xl mx-auto bg-gray-800 rounded-lg shadow-lg overflow-hidden">
                 <div className="relative p-6 sm:p-8" style={{ background: `linear-gradient(to right, ${primaryColor}, ${alternateColor})` }}>
                     <Link href="/" className="absolute top-4 left-4 text-white hover:underline flex items-center text-sm sm:text-base">
                         <svg className="w-4 h-4 mr-1 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
                         Back to Player Search
                     </Link>
-                    <div className="text-center pt-10 sm:pt-12 pb-4"> {/* Adjusted padding for content below arrow */}
+                    <div className="text-center pt-10 sm:pt-12 pb-4">
                         {player.teamLogo && (
                             <Image
                                 src={player.teamLogo}
                                 alt={`${player.team} logo`}
-                                width={120} // Increased logo size slightly
-                                height={120} // Increased logo size slightly
+                                width={120}
+                                height={120}
                                 className="mx-auto mb-4 bg-white p-2 rounded-full shadow-md"
                             />
                         )}
@@ -218,9 +213,9 @@ export default function PlayerDetailPage() {
                     </div>
                 </div>
 
-                <div className="p-6 sm:p-8"> {/* Responsive padding */}
+                <div className="p-6 sm:p-8">
                     <h2 className="text-xl sm:text-2xl font-semibold mb-4 text-blue-400">Player Profile</h2>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3 mb-8 text-base sm:text-lg"> {/* Adjusted gap and text size */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3 mb-8 text-base sm:text-lg">
                         <p><strong>Position:</strong> {player.position || 'N/A'}</p>
                         <p><strong>Jersey:</strong> {player.jersey ? `#${player.jersey}` : 'N/A'}</p>
                         <p><strong>Height:</strong> {player.height ? `${Math.floor(player.height / 12)}'${player.height % 12}"` : 'N/A'}</p>
@@ -230,10 +225,9 @@ export default function PlayerDetailPage() {
                     </div>
 
                     <h2 className="text-xl sm:text-2xl font-semibold mt-6 mb-4 text-blue-400">AI Overview</h2>
-                    <div className="prose prose-invert max-w-none text-base sm:text-lg leading-relaxed"> {/* Added leading-relaxed for better line spacing */}
+                    <div className="prose prose-invert max-w-none text-base sm:text-lg leading-relaxed">
                         {aiOverview.split('\n').map((paragraph, index) => (
-                            // Only render paragraphs that are not empty after trimming
-                            paragraph.trim() !== '' && <p key={index} className="mb-3">{paragraph.trim()}</p> // Adjusted margin
+                            paragraph.trim() !== '' && <p key={index} className="mb-3">{paragraph.trim()}</p>
                         ))}
                         {aiOverview.trim() === '' && <p className="text-gray-400 italic">No detailed AI overview available for this player.</p>}
                     </div>
@@ -241,7 +235,7 @@ export default function PlayerDetailPage() {
                     {aiRatings.length > 0 && (
                         <>
                             <h2 className="text-xl sm:text-2xl font-semibold mt-8 mb-4 text-blue-400">EA CFB 26 Hypothetical Ratings</h2>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-2 text-base sm:text-lg"> {/* Adjusted text size */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-2 text-base sm:text-lg">
                                 {aiRatings.map((rating, index) => (
                                     <p key={index} className="text-gray-300">{rating}</p>
                                 ))}

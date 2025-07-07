@@ -4,7 +4,6 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-// We will NOT import CSS Modules here. Tailwind direct classes will be used.
 
 // --- Interfaces for CollegeFootballData.com API ---
 
@@ -28,8 +27,8 @@ interface CfbdTeam {
     school: string;
     mascot: string | null;
     abbreviation: string | null;
-    alt_name1: string | null;
-    alt_name2: string | null;
+    alt_name1: string | null; // Corrected: was a duplicate before
+    alt_name2: string | null; // Corrected: was a duplicate before, now unique
     alt_name3: string | null;
     conference: string | null;
     division: string | null;
@@ -82,26 +81,20 @@ interface PlayerResultsProps {
     currentSearchYear: string; // Added to pass down to PlayerCard
 }
 
-// --- PlayerCard Component (UPDATED for correct wrapping and styling) ---
+// --- PlayerCard Component (Uses .player-card class from globals.css) ---
 const PlayerCard: React.FC<PlayerCardProps> = ({ player, searchYear }) => {
     const displayName = player.name || `${player.firstName || ''} ${player.lastName || ''}`.trim() || 'N/A Name';
-
-    // Encode the player object for safe URL passing
     const encodedPlayer = encodeURIComponent(JSON.stringify(player));
 
     return (
-        // Link wraps a div with the styling, ensuring CSS applies correctly
-        <Link
-            href={`/player/${player.id}?player=${encodedPlayer}&year=${searchYear}`}
-            // No direct className on Link, the div inside will be styled
-        >
-            {/* THIS IS THE CRITICAL FIX FOR THE MAIN PAGE CARD STYLING */}
-            <div className="player-card bg-gray-800 rounded-lg shadow-lg p-6 mb-4 transform transition duration-200 hover:scale-105 cursor-pointer flex flex-col items-start text-left">
-                <h4 className="text-2xl font-bold text-gray-200 mb-2">{displayName}</h4>
-                <p className="text-gray-400 mb-1">{player.team || 'N/A Team'} | {player.position || 'N/A Pos'} | {searchYear || 'N/A Season'}</p>
-                {player.jersey && <p className="text-gray-400 mb-1">Jersey: #{player.jersey}</p>}
+        <Link href={`/player/${player.id}?player=${encodedPlayer}&year=${searchYear}`}>
+            {/* The div inside the Link gets the styling from globals.css */}
+            <div className="player-card">
+                <h4>{displayName}</h4>
+                <p>{player.team || 'N/A Team'} | {player.position || 'N/A Pos'} | {searchYear || 'N/A Season'}</p>
+                {player.jersey && <p>Jersey: #{player.jersey}</p>}
                 {player.height && player.weight && (
-                    <p className="text-gray-400">Height: {Math.floor(player.height / 12)}'{player.height % 12}" | Weight: {player.weight} lbs</p>
+                    <p>Height: {Math.floor(player.height / 12)}'{player.height % 12}" | Weight: {player.weight} lbs</p>
                 )}
             </div>
         </Link>
@@ -109,41 +102,41 @@ const PlayerCard: React.FC<PlayerCardProps> = ({ player, searchYear }) => {
 };
 
 
-// --- PlayerResults Component (updated for better layout with Tailwind) ---
+// --- PlayerResults Component (Uses .player-results and .player-grid from globals.css) ---
 const PlayerResults: React.FC<PlayerResultsProps> = ({ players, isLoadingPlayers, error, currentSearchYear }) => {
     if (isLoadingPlayers) {
         return (
-            <main className="flex-1 p-6 flex items-center justify-center bg-gray-900 text-white">
-                <div className="text-xl">Loading players...</div>
+            <main className="player-results"> {/* Changed to use the class */}
+                <div className="loading-message">Loading players...</div>
             </main>
         );
     }
 
     if (error) {
         return (
-            <main className="flex-1 p-6 flex items-center justify-center bg-gray-900 text-red-500">
-                <div className="text-xl">Error fetching players: {error}</div>
+            <main className="player-results"> {/* Changed to use the class */}
+                <div className="error-message">Error fetching players: {error}</div>
             </main>
         );
     }
 
     return (
-        <main className="flex-1 bg-gray-900 text-white p-6"> {/* Added padding directly here */}
-            <h2 className="text-3xl font-bold text-center mb-6 text-blue-400">College Football Player Profiles</h2>
-            <div className="player-grid grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 p-4"> {/* Responsive grid with gap */}
+        <main className="player-results"> {/* Changed to use the class */}
+            <h2>College Football Player Profiles</h2>
+            <div className="player-grid"> {/* Uses the .player-grid class */}
                 {players.length > 0 ? (
                     players.map((player) => (
                         <PlayerCard key={player.id} player={player} searchYear={currentSearchYear} />
                     ))
                 ) : (
-                    <p className="text-center text-gray-400 col-span-full">No College Football players found matching your criteria. Try adjusting your filters.</p>
+                    <p className="loading-message">No College Football players found matching your criteria. Try adjusting your filters.</p>
                 )}
             </div>
         </main>
     );
 };
 
-// --- FilterSidebar Component (Updated for better Tailwind styling) ---
+// --- FilterSidebar Component (Uses .filter-sidebar, .filter-group, etc. from globals.css) ---
 const FilterSidebar: React.FC<FilterSidebarProps> = ({
     onApplyFilters,
     colleges,
@@ -195,21 +188,18 @@ const FilterSidebar: React.FC<FilterSidebarProps> = ({
     };
 
     return (
-        <aside className="w-full md:w-64 bg-gray-800 p-6 shadow-lg flex-shrink-0">
-            <h2 className="text-2xl font-bold mb-6 text-blue-400">College Football Player Filters</h2>
-            <form onSubmit={handleSubmit} className="space-y-4">
+        <aside className="filter-sidebar"> {/* Uses the .filter-sidebar class */}
+            <h2>College Football Player Filters</h2>
+            <form onSubmit={handleSubmit} className="filter-form"> {/* Uses the .filter-form class */}
                 {isLoadingFilters ? (
-                    <div className="flex justify-center items-center h-24">
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-                    </div>
+                    <div className="loading-message">Loading filters...</div> // Changed to use loading-message class
                 ) : (
                     <>
-                        <div className="filter-group">
-                            <h3 className="text-lg font-semibold mb-2 text-gray-200">Season (Year)</h3>
+                        <div className="filter-group"> {/* Uses the .filter-group class */}
+                            <h3>Season (Year)</h3>
                             <select
                                 value={yearValue}
                                 onChange={(e) => setYearValue(e.target.value)}
-                                className="w-full p-2 rounded bg-gray-700 border border-gray-600 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                             >
                                 <option value="">All Years</option>
                                 {years.map((year) => (
@@ -219,11 +209,10 @@ const FilterSidebar: React.FC<FilterSidebarProps> = ({
                         </div>
 
                         <div className="filter-group">
-                            <h3 className="text-lg font-semibold mb-2 text-gray-200">College Team</h3>
+                            <h3>College Team</h3>
                             <select
                                 value={collegeValue}
                                 onChange={(e) => setCollegeValue(e.target.value)}
-                                className="w-full p-2 rounded bg-gray-700 border border-gray-600 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                             >
                                 <option value="">All Colleges</option>
                                 {colleges.length > 0 ? (
@@ -237,11 +226,10 @@ const FilterSidebar: React.FC<FilterSidebarProps> = ({
                         </div>
 
                         <div className="filter-group">
-                            <h3 className="text-lg font-semibold mb-2 text-gray-200">Position</h3>
+                            <h3>Position</h3>
                             <select
                                 value={positionValue}
                                 onChange={(e) => setPositionValue(e.target.value)}
-                                className="w-full p-2 rounded bg-gray-700 border border-gray-600 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                             >
                                 <option value="">All Positions</option>
                                 {positions.map((pos) => (
@@ -251,19 +239,18 @@ const FilterSidebar: React.FC<FilterSidebarProps> = ({
                         </div>
 
                         <div className="filter-group">
-                            <h3 className="text-lg font-semibold mb-2 text-gray-200">Player Name</h3>
+                            <h3>Player Name</h3>
                             <input
                                 type="text"
                                 placeholder="First or Last Name"
                                 value={playerNameValue}
                                 onChange={(e) => setPlayerNameValue(e.target.value)}
-                                className="w-full p-2 rounded bg-gray-700 border border-gray-600 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                             />
                         </div>
 
-                        <div className="flex flex-col space-y-3 pt-4">
-                            <button type="submit" className="w-full py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition duration-300">Search Players</button>
-                            <button type="button" className="w-full py-2 bg-gray-600 text-white font-semibold rounded-lg hover:bg-gray-700 transition duration-300" onClick={handleReset}>Reset Filters</button>
+                        <div className="button-group"> {/* Uses the .button-group class */}
+                            <button type="submit" className="submit-button">Search Players</button> {/* Uses submit-button class */}
+                            <button type="button" className="reset-button" onClick={handleReset}>Reset Filters</button> {/* Uses reset-button class */}
                         </div>
                     </>
                 )}
@@ -273,7 +260,7 @@ const FilterSidebar: React.FC<FilterSidebarProps> = ({
 };
 
 
-// --- Main App Component (Updated with flex layout) ---
+// --- Main App Component (Uses .App, .main-container, header, footer from globals.css) ---
 const CollegeFootballApp: React.FC = () => {
     const [appliedFilters, setAppliedFilters] = useState({
         college: '',
@@ -433,14 +420,14 @@ const CollegeFootballApp: React.FC = () => {
     }, []);
 
     return (
-        <div className="min-h-screen flex flex-col bg-gray-900 text-white"> {/* Updated main container */}
-            <header className="bg-gray-800 text-white p-6 shadow-md text-center">
-                <h1 className="text-4xl font-extrabold mb-2 text-blue-400">CFB26 Teambuilder</h1>
-                <p className="text-xl text-gray-300">College Football Player Search (CFBD API)</p>
-                <p className="text-md text-gray-400 mt-2">Find college players by team, season, position, or name.</p>
+        <div className="App"> {/* Uses the .App class from globals.css */}
+            <header> {/* Uses the header class from globals.css */}
+                <h1>CFB26 Teambuilder</h1>
+                <p>College Football Player Search (CFBD API)</p>
+                <p>Find college players by team, season, position, or name.</p>
             </header>
 
-            <div className="flex flex-col md:flex-row flex-1"> {/* Main content area: sidebar and results */}
+            <div className="main-container"> {/* Uses the .main-container class from globals.css */}
                 <FilterSidebar
                     onApplyFilters={handleApplyFilters}
                     colleges={apiColleges}
@@ -461,7 +448,7 @@ const CollegeFootballApp: React.FC = () => {
                 />
             </div>
 
-            <footer className="bg-gray-800 text-gray-400 p-4 text-center text-sm shadow-inner">
+            <footer> {/* Uses the footer class from globals.css */}
                 <p>&copy; 2025 College Football Player Database POC</p>
             </footer>
         </div>
