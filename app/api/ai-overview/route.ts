@@ -9,7 +9,6 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Player data (name, team) and year are required.' }, { status: 400 });
         }
 
-        // Trim player name to avoid issues with leading/trailing spaces from data source
         const playerName = (player.name || `${player.firstName || ''} ${player.lastName || ''}`).trim();
         const teamName = player.team;
         const playerPosition = player.position ? player.position.toUpperCase() : 'N/A';
@@ -18,7 +17,6 @@ export async function POST(request: Request) {
         const playerWeight = player.weight ? `${player.weight} lbs` : 'N/A';
         const playerHometown = player.hometown || 'N/A';
 
-        // --- CollegeFootballData.com API Call ---
         const CFBD_API_KEY = process.env.CFBD_API_KEY;
 
         if (!CFBD_API_KEY) {
@@ -29,7 +27,6 @@ export async function POST(request: Request) {
         let cfbdStatsSummary = `Basic player info: Name: ${playerName}, Team: ${teamName}, Position: ${playerPosition}, Jersey: ${playerJersey}, Height: ${playerHeight}, Weight: ${playerWeight}, Hometown: ${playerHometown}.`;
         
         try {
-            // Use /stats/player/season which gives all stats for a team in a year
             const cfbdStatsUrl = `https://api.collegefootballdata.com/stats/player/season?year=${year}&team=${encodeURIComponent(teamName)}`;
             
             console.log(`Attempting to fetch ALL season stats for ${teamName} in ${year} from CFBD: ${cfbdStatsUrl}`);
@@ -44,34 +41,27 @@ export async function POST(request: Request) {
                 const allTeamSeasonStats = await cfbdStatsResponse.json();
                 console.log("Raw ALL season stats data from CFBD:", allTeamSeasonStats);
 
-                // --- NEW LOGIC: Filter all stats to get only the target player's stats ---
-                const targetPlayerId = player.id; // Use player.id from frontend
+                const targetPlayerId = player.id;
                 const targetPlayerNameLower = playerName.toLowerCase();
 
                 const playerSpecificStatsEntries = allTeamSeasonStats.filter((statEntry: any) => {
-                    const entryPlayerNameLower = (statEntry.player || '').toLowerCase().trim(); // Trim name from CFBD response
+                    const entryPlayerNameLower = (statEntry.player || '').toLowerCase().trim();
                     const entryPlayerId = statEntry.playerId;
 
-                    // Match by player ID (more reliable) or by normalized player name
                     return (targetPlayerId && entryPlayerId === targetPlayerId) || 
                            (entryPlayerNameLower === targetPlayerNameLower);
                 });
 
-                // --- NEW CONSOLE.LOG FOR DEBUGGING FILTERED ENTRIES ---
                 console.log("Player-specific filtered stat entries:", playerSpecificStatsEntries);
-
 
                 if (playerSpecificStatsEntries.length > 0) {
                     let specificStats: string[] = [];
-                    // Create statsMap from the filtered entries
                     const statsMap = new Map<string, any>(); 
 
                     playerSpecificStatsEntries.forEach((s: any) => {
-                        // Key format: category_statType (e.g., 'passing_YDS', 'defensive_SACK')
                         statsMap.set(`${s.category}_${s.statType}`, s.stat);
                     });
 
-                    // --- Updated Stat Extraction: Using CFBD's statType names (e.g., YDS, TD, ATT, SOLO) ---
                     if (playerPosition.includes('QB')) {
                         specificStats.push(`Passing Yards: ${statsMap.get('passing_YDS') || 'N/A'}`);
                         specificStats.push(`Passing TDs: ${statsMap.get('passing_TD') || 'N/A'}`);
@@ -97,20 +87,20 @@ export async function POST(request: Request) {
                         specificStats.push(`Receiving TDs: ${statsMap.get('receiving_TD') || 'N/A'}`);
                         specificStats.push(`Targets: ${statsMap.get('receiving_TAR') || 'N/A'}`);
                     } else if (playerPosition.includes('LB') || playerPosition.includes('DB') || playerPosition.includes('S') || playerPosition.includes('CB')) {
-                        specificStats.push(`Total Tackles: ${statsMap.get('defensive_TOT') || 'N/A'}`); // Often 'TOT' for total tackles
+                        specificStats.push(`Total Tackles: ${statsMap.get('defensive_TOT') || 'N/A'}`);
                         specificStats.push(`Solo Tackles: ${statsMap.get('defensive_SOLO') || 'N/A'}`);
                         specificStats.push(`Sacks: ${statsMap.get('defensive_SACK') || 'N/A'}`);
-                        specificStats.push(`Tackles for Loss: ${statsMap.get('defensive_TFL') || 'N/A'}`); // TFL is common statType
+                        specificStats.push(`Tackles for Loss: ${statsMap.get('defensive_TFL') || 'N/A'}`);
                         specificStats.push(`Interceptions: ${statsMap.get('defensive_INT') || 'N/A'}`);
-                        specificStats.push(`Pass Breakups: ${statsMap.get('defensive_PD') || 'N/A'}`); // Pass Deflections is common
-                        specificStats.push(`Forced Fumbles: ${statsMap.get('defensive_FF') || 'N/A'}`); // Forced Fumbles
+                        specificStats.push(`Pass Breakups: ${statsMap.get('defensive_PD') || 'N/A'}`);
+                        specificStats.push(`Forced Fumbles: ${statsMap.get('defensive_FF') || 'N/A'}`);
                     } else if (playerPosition.includes('DL') || playerPosition.includes('DT') || playerPosition.includes('DE')) {
                         specificStats.push(`Total Tackles: ${statsMap.get('defensive_TOT') || 'N/A'}`);
                         specificStats.push(`Solo Tackles: ${statsMap.get('defensive_SOLO') || 'N/A'}`);
                         specificStats.push(`Sacks: ${statsMap.get('defensive_SACK') || 'N/A'}`);
                         specificStats.push(`Tackles for Loss: ${statsMap.get('defensive_TFL') || 'N/A'}`);
-                        specificStats.push(`QB Hurries: ${statsMap.get('defensive_QB HUR') || 'N/A'}`); // Note: 'QB HUR' includes a space
-                    } else if (playerPosition.includes('K') || playerPosition.includes('P')) { // Kicker/Punter
+                        specificStats.push(`QB Hurries: ${statsMap.get('defensive_QB HUR') || 'N/A'}`);
+                    } else if (playerPosition.includes('K') || playerPosition.includes('P')) {
                         specificStats.push(`Field Goals Made: ${statsMap.get('kicking_FGM') || 'N/A'}`);
                         specificStats.push(`Field Goals Att: ${statsMap.get('kicking_FGA') || 'N/A'}`);
                         specificStats.push(`Extra Points Made: ${statsMap.get('kicking_PAT') || 'N/A'}`);
@@ -118,7 +108,6 @@ export async function POST(request: Request) {
                         specificStats.push(`Punts: ${statsMap.get('punting_PUNTS') || 'N/A'}`);
                         specificStats.push(`Average Punt: ${statsMap.get('punting_AVG') || 'N/A'}`);
                     } else {
-                        // Fallback: list all available stats for the player if no specific position match
                         const allPlayerStats = playerSpecificStatsEntries.map((s: any) => `${s.category} ${s.statType}: ${s.stat}`).join(', ');
                         if (allPlayerStats) {
                             specificStats.push(`All available stats: ${allPlayerStats}`);
@@ -143,7 +132,6 @@ export async function POST(request: Request) {
             cfbdStatsSummary += `\nError retrieving detailed stats from CollegeFootballData.com: ${cfbdError.message}.`;
         }
 
-        // --- OpenAI API Call ---
         const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
         if (!OPENAI_API_KEY) {
@@ -155,15 +143,15 @@ export async function POST(request: Request) {
             apiKey: OPENAI_API_KEY,
         });
 
-        const prompt = `Generate a concise, 2-3 paragraph college football player overview for ${playerName} from ${teamName} for the ${year} season. 
-        
-        Here's the available information:
-        ${cfbdStatsSummary}
-        
-        Additionally, based on the player's real-world stats, position, and general college football knowledge, generate a list of hypothetical in-game ratings for them for a game like EA Sports College Football 26.
-        For each rating, provide a numerical value between 50 and 100. Focus on categories relevant to their position.
-        
-        Example format:
+        // --- UPDATED PROMPT WITH DELIMITERS ---
+        const prompt = `Generate a concise college football player overview for ${playerName} from ${teamName} for the ${year} season. Follow the exact structure below, using the specified delimiters.
+
+        ## OVERVIEW ##
+        [Generate 2-3 paragraphs for the player overview here. If detailed statistics were not provided (indicated by 'N/A' or general phrasing), mention that and provide a general overview based on common knowledge about college football player roles and potential. Focus on their general profile if specific stats are absent. Keep it professional and informative.]
+
+        ## RATINGS ##
+        [Based on the player's real-world stats, position, and general college football knowledge, generate a list of hypothetical in-game ratings for them for a game like EA Sports College Football 26. For each rating, provide a numerical value between 50 and 100. Focus on categories relevant to their position. Use the exact format below, one rating per line.]
+
         EA CFB 26 Hypothetical Ratings:
         - Speed (SPD): [Rating]
         - Strength (STR): [Rating]
@@ -191,7 +179,9 @@ export async function POST(request: Request) {
         - Special Teams (ST): [Rating]
         - Overall (OVR): [Rating]
 
-        If specific stats were not provided, provide a general overview based on common knowledge about college football player roles and potential. Keep it professional and informative.`;
+        Available information for AI:
+        ${cfbdStatsSummary}
+        `;
 
         console.log("Sending prompt to OpenAI API...");
 
@@ -199,10 +189,10 @@ export async function POST(request: Request) {
             const completion = await openai.chat.completions.create({
                 model: "gpt-4o-mini",
                 messages: [
-                    { role: "system", content: "You are a concise college football expert. Provide player overviews and hypothetical in-game ratings based on provided data. If data is limited, provide a general profile and infer ratings based on role." },
+                    { role: "system", content: "You are a concise college football expert. Generate player overviews and hypothetical in-game ratings. Always follow the specified output format with ## OVERVIEW ## and ## RATINGS ## delimiters. If data is limited, provide a general profile and infer ratings based on role." },
                     { role: "user", content: prompt },
                 ],
-                max_tokens: 500, // Increased max_tokens to accommodate ratings
+                max_tokens: 700, // Increased max_tokens again for safety with detailed ratings and delimiters
                 temperature: 0.7,
             });
 
