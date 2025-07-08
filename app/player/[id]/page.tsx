@@ -47,6 +47,12 @@ interface PlayerDetailsState {
     assignedAbilities: AssignedAbility[];
     loading: boolean;
     error: string | null;
+    // New fields from AI overview
+    playerClass: string;
+    redshirted: string;
+    highSchoolRating: string;
+    archetype: string;
+    dealbreaker: string;
 }
 
 export default function PlayerDetailPage() {
@@ -59,6 +65,12 @@ export default function PlayerDetailPage() {
         assignedAbilities: [],
         loading: true,
         error: null,
+        // Initialize new fields
+        playerClass: 'N/A',
+        redshirted: 'N/A',
+        highSchoolRating: 'N/A',
+        archetype: 'N/A',
+        dealbreaker: 'N/A',
     });
 
     const fetchTeamDetails = useCallback(async (teamName: string) => {
@@ -123,7 +135,13 @@ export default function PlayerDetailPage() {
                     error: null,
                     aiOverview: 'Generating AI Overview...',
                     aiRatings: [],
-                    assignedAbilities: []
+                    assignedAbilities: [],
+                    // Reset new fields
+                    playerClass: 'N/A',
+                    redshirted: 'N/A',
+                    highSchoolRating: 'N/A',
+                    archetype: 'N/A',
+                    dealbreaker: 'N/A',
                 }));
 
                 const response = await fetch('/api/ai-overview', {
@@ -141,6 +159,12 @@ export default function PlayerDetailPage() {
                         aiOverview: data.aiOverview || 'No AI overview available.',
                         aiRatings: data.aiRatings || [],
                         assignedAbilities: data.assignedAbilities || [],
+                        // Set new fields from API response
+                        playerClass: data.playerClass || 'N/A',
+                        redshirted: data.redshirted || 'N/A',
+                        highSchoolRating: data.highSchoolRating || 'N/A',
+                        archetype: data.archetype || 'N/A',
+                        dealbreaker: data.dealbreaker || 'N/A',
                         loading: false
                     }));
                 } else {
@@ -164,7 +188,7 @@ export default function PlayerDetailPage() {
         fetchAllDetails();
     }, [searchParams, fetchTeamDetails]);
 
-    const { player, aiOverview, aiRatings, assignedAbilities, loading, error } = playerDetails;
+    const { player, aiOverview, aiRatings, assignedAbilities, loading, error, playerClass, redshirted, highSchoolRating, archetype, dealbreaker } = playerDetails;
 
     const getTierColor = (tier: string) => {
         switch (tier) {
@@ -268,6 +292,12 @@ export default function PlayerDetailPage() {
                             <p><strong>Weight:</strong> {player.weight ? `${player.weight} lbs` : 'N/A'}</p>
                             <p><strong>Hometown:</strong> {player.hometown || 'N/A'}</p>
                             <p><strong>Team:</strong> {player.team || 'N/A'}</p>
+                            {/* New Player Details */}
+                            <p><strong>Class:</strong> {playerClass}</p>
+                            <p><strong>Redshirted:</strong> {redshirted}</p>
+                            <p><strong>High School Rating:</strong> {highSchoolRating}</p>
+                            <p><strong>Archetype:</strong> {archetype}</p>
+                            <p><strong>Dealbreaker:</strong> {dealbreaker}</p>
                         </div>
                     </div>
                 </div>
