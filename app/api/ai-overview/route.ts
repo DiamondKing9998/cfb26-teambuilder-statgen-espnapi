@@ -15,14 +15,24 @@ interface CfbdPlayer {
     jersey: number | null;
     hometown: string | null;
     team: string;
-    // Added redshirted status
-    redshirted?: boolean | null; // Assuming this might come from the initial player data
+    // redshirted is now calculated internally, so we remove it from initial player interface
+    // redshirted?: boolean | null;
 }
 
 interface AssignedAbility {
     name: string;
     tier: string;
     description: string;
+}
+
+interface PlayerUsageSeason {
+    season: number;
+    gamesPlayed: number;
+    carries: number;
+    passingAttempts: number;
+    receivingTargets: number;
+    defensiveSnaps: number;
+    specialTeamsSnaps: number;
 }
 
 const allAbilities = [
@@ -179,9 +189,7 @@ export async function POST(req: NextRequest) {
         const playerHeight = player.height ? `${Math.floor(player.height / 12)}'${player.height % 12}"` : 'N/A';
         const playerWeight = player.weight ? `${player.weight} lbs` : 'N/A';
         const playerHometown = player.hometown || 'N/A';
-        // Handle redshirted status from player data, defaulting to 'Uncertain' if not provided
-        const redshirtedStatus = player.redshirted === true ? 'Yes' : (player.redshirted === false ? 'No' : 'Uncertain');
-
+        // Redshirt status will be calculated below
 
         const CFBD_API_KEY = process.env.CFBD_API_KEY;
 
@@ -190,8 +198,64 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: "Server configuration error: College Football Data API key missing." }, { status: 500 });
         }
 
-        let cfbdStatsSummary = `Basic player info: Name: ${playerName}, Team: ${teamName}, Position: ${playerPosition}, Jersey: ${playerJersey}, Height: ${playerHeight}, Weight: ${playerWeight}, Hometown: ${playerHometown}, Redshirted: ${redshirtedStatus}.`;
+        let cfbdStatsSummary = `Basic player info: Name: ${playerName}, Team: ${teamName}, Position: ${playerPosition}, Jersey: ${playerJersey}, Height: ${playerHeight}, Weight: ${playerWeight}, Hometown: ${playerHometown}.`;
 
+        // --- Fetch Player Usage (for redshirt logic, primarily gamesPlayed) ---
+        let playerUsage: PlayerUsageSeason[] = [];
+        try {
+            const usageParams = new URLSearchParams({
+                // Note: CFBD player usage endpoint often needs a team parameter
+                // but if we are searching by playerId, it should return usage across teams if player changed.
+                // It's safer to include player ID if it's consistently available.
+                playerId: player.id,
+            });
+            const usageUrl = `https://api.collegefootballdata.com/player/usage?${usageParams.toString()}`;
+            console.log(`Attempting to fetch player usage for ${playerName} from CFBD: ${usageUrl}`);
+
+            const usageResponse = await fetch(usageUrl, {
+                headers: {
+                    'Authorization': `Bearer ${CFBD_API_KEY}`,
+                    'Accept': 'application/json'
+                },
+            });
+
+            if (usageResponse.ok) {
+                const rawUsageData = await usageResponse.json();
+                // CFBD player/usage returns an array of objects, each for a player.
+                // We need to find the specific player's usage array.
+                playerUsage = rawUsageData.find((u: any) => u.playerId === player.id)?.usage || [];
+                console.log(`[AI Overview API] Fetched ${playerUsage.length} usage entries for redshirt calculation.`);
+            } else {
+                const errorText = await usageResponse.text();
+                console.warn(`CFBD player usage API returned non-OK status ${usageResponse.status}: ${errorText}`);
+            }
+        } catch (error) {
+            console.warn(`[AI Overview API] Could not fetch player usage for player ${player.id}:`, error);
+        }
+
+        // --- Determine Redshirt Status based on Player Usage ---
+        let determinedRedshirtStatus = 'Uncertain';
+        if (playerUsage.length > 0) {
+            let redshirtYearsCount = 0;
+            playerUsage.forEach(usage => {
+                // NCAA redshirt rule: played in 4 or fewer games in a season
+                // Ensure gamesPlayed is a number and is not null/undefined
+                if (typeof usage.gamesPlayed === 'number' && usage.gamesPlayed <= 4 && usage.gamesPlayed >= 0) {
+                    redshirtYearsCount++;
+                }
+            });
+
+            if (redshirtYearsCount === 0) {
+                determinedRedshirtStatus = 'No'; // Explicitly not redshirted based on usage data
+            } else if (redshirtYearsCount === 1) {
+                determinedRedshirtStatus = 'Yes (1 time)';
+            } else {
+                determinedRedshirtStatus = `Yes (${redshirtYearsCount} times)`;
+            }
+        }
+        cfbdStatsSummary += ` Redshirted: ${determinedRedshirtStatus}.`; // Add to summary
+
+        // Original CFBD Stats fetch logic (for season-specific stats like YDS, TD, etc.)
         try {
             const cfbdStatsUrl = `https://api.collegefootballdata.com/stats/player/season?year=${year}&team=${encodeURIComponent(teamName)}`;
 
@@ -212,7 +276,7 @@ export async function POST(req: NextRequest) {
 
                 const playerSpecificStatsEntries = allTeamSeasonStats.filter((statEntry: any) => {
                     const entryPlayerNameLower = (statEntry.player || '').toLowerCase().trim();
-                    const entryPlayerId = statEntry.id; // Corrected: Use statEntry.id as per CFBD schema for player ID
+                    const entryPlayerId = statEntry.playerId; // Use statEntry.playerId as per CFBD schema for player ID
 
                     // Match by ID if available, otherwise by name (player.id is the ID from your initial player search)
                     return (targetPlayerId && entryPlayerId === targetPlayerId) ||
@@ -407,7 +471,7 @@ export async function POST(req: NextRequest) {
             ## ADDITIONAL PLAYER DETAILS ##
             Provide the following additional details about the player based on the available information and general football knowledge.
             - Class: [Freshman/Sophomore/Junior/Senior. Infer based on typical college career progression if direct info isn't available, or state N/A if impossible]
-            - Redshirted: [Yes/No/Uncertain]
+            - Redshirted: [${determinedRedshirtStatus}]
             - High School Rating: [e.g., 5-star, 4-star, 3-star, 2-star, Unrated. Infer if possible or state N/A]
             - Archetype: [Choose ONE from the list below based on the player's position and play style]
               ${playerPosition.includes('QB') ? `  - Backfield Creator (Improviser)
@@ -496,7 +560,7 @@ export async function POST(req: NextRequest) {
         let playerQualityScore: number | null = null;
         // NEW PARSED FIELDS
         let playerClass: string = 'N/A';
-        let redshirted: boolean | null = null;
+        let redshirtedFromAI: string = 'Uncertain'; // Store as string for direct output
         let highSchoolRating: string = 'N/A';
         let archetype: string = 'N/A';
         let dealbreaker: string = 'N/A';
@@ -544,10 +608,7 @@ export async function POST(req: NextRequest) {
 
             const redshirtedMatch = detailsContent.match(/-\s*Redshirted:\s*(.*)/i);
             if (redshirtedMatch && redshirtedMatch[1]) {
-                const val = redshirtedMatch[1].trim().toLowerCase();
-                if (val === 'yes') redshirted = true;
-                else if (val === 'no') redshirted = false;
-                else redshirted = null; // Uncertain or N/A
+                redshirtedFromAI = redshirtedMatch[1].trim(); // Get the string directly from AI
             }
 
             const hsRatingMatch = detailsContent.match(/-\s*High School Rating:\s*(.*)/i);
@@ -585,7 +646,7 @@ export async function POST(req: NextRequest) {
         console.log(`[AI Overview API] Parsed Ratings:`, aiRatings);
         console.log(`[AI Overview API] Parsed Quality Score:`, playerQualityScore);
         console.log(`[AI Overview API] Parsed Player Class:`, playerClass);
-        console.log(`[AI Overview API] Parsed Redshirted:`, redshirted);
+        console.log(`[AI Overview API] Parsed Redshirted:`, redshirtedFromAI); // Log what AI returned
         console.log(`[AI Overview API] Parsed HS Rating:`, highSchoolRating);
         console.log(`[AI Overview API] Parsed Archetype:`, archetype);
         console.log(`[AI Overview API] Parsed Dealbreaker:`, dealbreaker);
@@ -634,7 +695,7 @@ export async function POST(req: NextRequest) {
             playerQualityScore, // Include quality score in response if frontend needs it
             // NEW FIELDS IN RESPONSE
             playerClass,
-            redshirted: redshirtedStatus, // Return the string for clarity
+            redshirted: determinedRedshirtStatus, // Return the string for clarity, derived from CFBD
             highSchoolRating,
             archetype,
             dealbreaker,
