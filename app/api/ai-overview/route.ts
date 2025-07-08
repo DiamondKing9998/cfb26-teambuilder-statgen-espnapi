@@ -15,8 +15,6 @@ interface CfbdPlayer {
     jersey: number | null;
     hometown: string | null;
     team: string;
-    // redshirted is now calculated internally, so we remove it from initial player interface
-    // redshirted?: boolean | null;
 }
 
 interface AssignedAbility {
@@ -204,13 +202,10 @@ export async function POST(req: NextRequest) {
         let playerUsage: PlayerUsageSeason[] = [];
         try {
             const usageParams = new URLSearchParams({
-                // Note: CFBD player usage endpoint often needs a team parameter
-                // but if we are searching by playerId, it should return usage across teams if player changed.
-                // It's safer to include player ID if it's consistently available.
                 playerId: player.id,
             });
             const usageUrl = `https://api.collegefootballdata.com/player/usage?${usageParams.toString()}`;
-            console.log(`Attempting to fetch player usage for ${playerName} from CFBD: ${usageUrl}`);
+            console.log(`[CFBD API] Attempting to fetch player usage for ${playerName} from: ${usageUrl}`);
 
             const usageResponse = await fetch(usageUrl, {
                 headers: {
@@ -221,16 +216,16 @@ export async function POST(req: NextRequest) {
 
             if (usageResponse.ok) {
                 const rawUsageData = await usageResponse.json();
-                // CFBD player/usage returns an array of objects, each for a player.
-                // We need to find the specific player's usage array.
+                console.log(`[CFBD API] Raw player usage response for ${playerName}:`, JSON.stringify(rawUsageData, null, 2));
+
                 playerUsage = rawUsageData.find((u: any) => u.playerId === player.id)?.usage || [];
-                console.log(`[AI Overview API] Fetched ${playerUsage.length} usage entries for redshirt calculation.`);
+                console.log(`[CFBD API] Filtered player usage entries for ${playerName} (length: ${playerUsage.length}):`, playerUsage);
             } else {
                 const errorText = await usageResponse.text();
-                console.warn(`CFBD player usage API returned non-OK status ${usageResponse.status}: ${errorText}`);
+                console.warn(`[CFBD API] Player usage API returned non-OK status ${usageResponse.status}: ${errorText}`);
             }
         } catch (error) {
-            console.warn(`[AI Overview API] Could not fetch player usage for player ${player.id}:`, error);
+            console.error(`[CFBD API] Error fetching player usage for player ${player.id}:`, error);
         }
 
         // --- Determine Redshirt Status based on Player Usage ---
@@ -252,6 +247,9 @@ export async function POST(req: NextRequest) {
             } else {
                 determinedRedshirtStatus = `Yes (${redshirtYearsCount} times)`;
             }
+            console.log(`[Redshirt Logic] Calculated redshirtYearsCount: ${redshirtYearsCount}, determinedRedshirtStatus: ${determinedRedshirtStatus}`);
+        } else {
+            console.log(`[Redshirt Logic] Player usage data is empty or not found. Redshirt status remains: ${determinedRedshirtStatus}`);
         }
         cfbdStatsSummary += ` Redshirted: ${determinedRedshirtStatus}.`; // Add to summary
 
@@ -259,7 +257,7 @@ export async function POST(req: NextRequest) {
         try {
             const cfbdStatsUrl = `https://api.collegefootballdata.com/stats/player/season?year=${year}&team=${encodeURIComponent(teamName)}`;
 
-            console.log(`Attempting to fetch ALL season stats for ${teamName} in ${year} from CFBD: ${cfbdStatsUrl}`);
+            console.log(`[CFBD API] Attempting to fetch ALL season stats for ${teamName} in ${year} from CFBD: ${cfbdStatsUrl}`);
             const cfbdStatsResponse = await fetch(cfbdStatsUrl, {
                 headers: {
                     'Authorization': `Bearer ${CFBD_API_KEY}`,
@@ -269,7 +267,7 @@ export async function POST(req: NextRequest) {
 
             if (cfbdStatsResponse.ok) {
                 const allTeamSeasonStats = await cfbdStatsResponse.json();
-                console.log("Raw ALL season stats data from CFBD:", allTeamSeasonStats);
+                console.log("[CFBD API] Raw ALL season stats data from CFBD:", JSON.stringify(allTeamSeasonStats, null, 2));
 
                 const targetPlayerId = player.id;
                 const targetPlayerNameLower = playerName.toLowerCase().trim(); // Ensure trimming for comparison
@@ -283,7 +281,7 @@ export async function POST(req: NextRequest) {
                            (entryPlayerNameLower === targetPlayerNameLower);
                 });
 
-                console.log("Player-specific filtered stat entries:", playerSpecificStatsEntries);
+                console.log("[CFBD API] Player-specific filtered stat entries:", JSON.stringify(playerSpecificStatsEntries, null, 2));
 
                 if (playerSpecificStatsEntries.length > 0) {
                     let specificStats: string[] = [];
@@ -356,11 +354,11 @@ export async function POST(req: NextRequest) {
                 }
             } else {
                 const errorText = await cfbdStatsResponse.text();
-                console.warn(`CFBD stats API returned non-OK status ${cfbdStatsResponse.status}: ${errorText}`);
+                console.warn(`[CFBD API] Stats API returned non-OK status ${cfbdStatsResponse.status}: ${errorText}`);
                 cfbdStatsSummary += `\nCould not retrieve detailed stats from CollegeFootballData.com (Status: ${cfbdStatsResponse.status}).`;
             }
         } catch (cfbdError: any) {
-            console.error("Error fetching detailed stats from CollegeFootballData.com:", cfbdError);
+            console.error("[CFBD API] Error fetching detailed stats from CollegeFootballData.com:", cfbdError);
             cfbdStatsSummary += `\nError retrieving detailed stats from CollegeFootballData.com: ${cfbdError.message}.`;
         }
 
@@ -471,7 +469,7 @@ export async function POST(req: NextRequest) {
             ## ADDITIONAL PLAYER DETAILS ##
             Provide the following additional details about the player based on the available information and general football knowledge.
             - Class: [Freshman/Sophomore/Junior/Senior. Infer based on typical college career progression if direct info isn't available, or state N/A if impossible]
-            - Redshirted: [${determinedRedshirtStatus}]
+            - Redshirted: [${determinedRedshirtStatus}] (IMPORTANT: You MUST use this exact value for Redshirted. Do NOT use 'Uncertain' if this value is 'Yes' or 'No'.)
             - High School Rating: [e.g., 5-star, 4-star, 3-star, 2-star, Unrated. Infer if possible or state N/A]
             - Archetype: [Choose ONE from the list below based on the player's position and play style]
               ${playerPosition.includes('QB') ? `  - Backfield Creator (Improviser)
@@ -646,7 +644,7 @@ export async function POST(req: NextRequest) {
         console.log(`[AI Overview API] Parsed Ratings:`, aiRatings);
         console.log(`[AI Overview API] Parsed Quality Score:`, playerQualityScore);
         console.log(`[AI Overview API] Parsed Player Class:`, playerClass);
-        console.log(`[AI Overview API] Parsed Redshirted:`, redshirtedFromAI); // Log what AI returned
+        console.log(`[AI Overview API] Parsed Redshirted (from AI response):`, redshirtedFromAI); // Log what AI returned
         console.log(`[AI Overview API] Parsed HS Rating:`, highSchoolRating);
         console.log(`[AI Overview API] Parsed Archetype:`, archetype);
         console.log(`[AI Overview API] Parsed Dealbreaker:`, dealbreaker);
