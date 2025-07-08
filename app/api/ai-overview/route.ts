@@ -2,6 +2,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
+import { Google Search } from '@google/generative-tools'; // Import Google Search tool
 
 // Define interfaces for type safety
 interface CfbdPlayer {
@@ -187,7 +188,6 @@ export async function POST(req: NextRequest) {
         const playerHeight = player.height ? `${Math.floor(player.height / 12)}'${player.height % 12}"` : 'N/A';
         const playerWeight = player.weight ? `${player.weight} lbs` : 'N/A';
         const playerHometown = player.hometown || 'N/A';
-        // Redshirt status will be calculated below
 
         const CFBD_API_KEY = process.env.CFBD_API_KEY;
 
@@ -200,6 +200,7 @@ export async function POST(req: NextRequest) {
 
         // --- Fetch Player Usage (for redshirt logic, primarily gamesPlayed) ---
         let playerUsage: PlayerUsageSeason[] = [];
+        let initialRedshirtStatus = 'Uncertain'; // Initial status from CFBD API attempt
         try {
             const usageParams = new URLSearchParams({
                 playerId: player.id,
@@ -220,6 +221,28 @@ export async function POST(req: NextRequest) {
 
                 playerUsage = rawUsageData.find((u: any) => u.playerId === player.id)?.usage || [];
                 console.log(`[CFBD API] Filtered player usage entries for ${playerName} (length: ${playerUsage.length}):`, playerUsage);
+
+                // Determine initial redshirt status from CFBD data
+                if (playerUsage.length > 0) {
+                    let redshirtYearsCount = 0;
+                    playerUsage.forEach(usage => {
+                        if (typeof usage.gamesPlayed === 'number' && usage.gamesPlayed <= 4 && usage.gamesPlayed >= 0) {
+                            redshirtYearsCount++;
+                        }
+                    });
+
+                    if (redshirtYearsCount === 0) {
+                        initialRedshirtStatus = 'No';
+                    } else if (redshirtYearsCount === 1) {
+                        initialRedshirtStatus = 'Yes (1 time)';
+                    } else {
+                        initialRedshirtStatus = `Yes (${redshirtYearsCount} times)`;
+                    }
+                    console.log(`[Redshirt Logic] CFBD-derived redshirtYearsCount: ${redshirtYearsCount}, initialRedshirtStatus: ${initialRedshirtStatus}`);
+                } else {
+                    console.log(`[Redshirt Logic] Player usage data from CFBD is empty or not found. Initial redshirt status remains: ${initialRedshirtStatus}`);
+                }
+
             } else {
                 const errorText = await usageResponse.text();
                 console.warn(`[CFBD API] Player usage API returned non-OK status ${usageResponse.status}: ${errorText}`);
@@ -228,30 +251,45 @@ export async function POST(req: NextRequest) {
             console.error(`[CFBD API] Error fetching player usage for player ${player.id}:`, error);
         }
 
-        // --- Determine Redshirt Status based on Player Usage ---
-        let determinedRedshirtStatus = 'Uncertain';
-        if (playerUsage.length > 0) {
-            let redshirtYearsCount = 0;
-            playerUsage.forEach(usage => {
-                // NCAA redshirt rule: played in 4 or fewer games in a season
-                // Ensure gamesPlayed is a number and is not null/undefined
-                if (typeof usage.gamesPlayed === 'number' && usage.gamesPlayed <= 4 && usage.gamesPlayed >= 0) {
-                    redshirtYearsCount++;
-                }
-            });
+        let googleSearchResults = '';
+        // Only perform Google search if CFBD data was inconclusive for redshirt status
+        if (initialRedshirtStatus === 'Uncertain') {
+            console.log(`[Google Search] CFBD redshirt status uncertain. Performing Google search for ${playerName} redshirt status.`);
+            try {
+                const searchQueries = [
+                    `${playerName} ${teamName} college redshirt status`,
+                    `${playerName} college career games played`
+                ];
+                const searchResults = await Google Search(searchQueries); // Using the Google Search tool
+                console.log(`[Google Search] Raw search results:`, JSON.stringify(searchResults, null, 2));
 
-            if (redshirtYearsCount === 0) {
-                determinedRedshirtStatus = 'No'; // Explicitly not redshirted based on usage data
-            } else if (redshirtYearsCount === 1) {
-                determinedRedshirtStatus = 'Yes (1 time)';
-            } else {
-                determinedRedshirtStatus = `Yes (${redshirtYearsCount} times)`;
+                if (searchResults && searchResults.length > 0) {
+                    googleSearchResults = searchResults.map(sr => {
+                        if (sr.results && sr.results.length > 0) {
+                            return `Search Query: ${sr.query}\nResults:\n` +
+                                   sr.results.map(r => `- ${r.source_title}: ${r.snippet}`).join('\n');
+                        }
+                        return '';
+                    }).filter(Boolean).join('\n\n');
+                    if (googleSearchResults) {
+                        console.log(`[Google Search] Formatted search results for prompt:\n${googleSearchResults}`);
+                    } else {
+                        console.log(`[Google Search] No relevant snippets found in search results for ${playerName}.`);
+                    }
+                } else {
+                    console.log(`[Google Search] No search results returned for ${playerName}.`);
+                }
+            } catch (searchError) {
+                console.error(`[Google Search] Error performing search for ${playerName}:`, searchError);
             }
-            console.log(`[Redshirt Logic] Calculated redshirtYearsCount: ${redshirtYearsCount}, determinedRedshirtStatus: ${determinedRedshirtStatus}`);
-        } else {
-            console.log(`[Redshirt Logic] Player usage data is empty or not found. Redshirt status remains: ${determinedRedshirtStatus}`);
         }
-        cfbdStatsSummary += ` Redshirted: ${determinedRedshirtStatus}.`; // Add to summary
+
+        // Add CFBD initial redshirt status and Google search results to summary for AI's consideration
+        cfbdStatsSummary += ` Redshirted (CFBD-derived initial assessment): ${initialRedshirtStatus}.`;
+        if (googleSearchResults) {
+            cfbdStatsSummary += `\n\n--- Additional Information from Web Search ---\n${googleSearchResults}\n------------------------------------------------`;
+        }
+
 
         // Original CFBD Stats fetch logic (for season-specific stats like YDS, TD, etc.)
         try {
@@ -469,7 +507,7 @@ export async function POST(req: NextRequest) {
             ## ADDITIONAL PLAYER DETAILS ##
             Provide the following additional details about the player based on the available information and general football knowledge.
             - Class: [Freshman/Sophomore/Junior/Senior. Infer based on typical college career progression if direct info isn't available, or state N/A if impossible]
-            - Redshirted: [${determinedRedshirtStatus}] (IMPORTANT: You MUST use this exact value for Redshirted. Do NOT use 'Uncertain' if this value is 'Yes' or 'No'.)
+            - Redshirted: [Determine based on ALL provided data (CFBD stats AND web search results if present). State 'Yes (X times)', 'No', or 'Uncertain'. Be explicit in your reasoning if the information is conflicting or scarce.]
             - High School Rating: [e.g., 5-star, 4-star, 3-star, 2-star, Unrated. Infer if possible or state N/A]
             - Archetype: [Choose ONE from the list below based on the player's position and play style]
               ${playerPosition.includes('QB') ? `  - Backfield Creator (Improviser)
@@ -513,8 +551,8 @@ export async function POST(req: NextRequest) {
               - Field (Slot)
               - Zone (Zone)
               - Boundary (Slot/Man)` : ''}
-              ${playerPosition.includes('S') ? `  - Coverage Specialist (Zone)
-              - Box Specialist (Run Support)
+              ${playerPosition.includes('S') ? `  - Box Specialist (Run Support)
+              - Coverage Specialist (Zone)
               - Hybrid` : ''}
             - Dealbreaker: [A hypothetical reason for transfer or leaving a program, e.g., Lack of playing time, Proximity to home, Coaching change, Academic struggles, NIL opportunities. State N/A if no obvious dealbreaker can be inferred.]
 
@@ -556,9 +594,8 @@ export async function POST(req: NextRequest) {
         let aiOverview = "No AI overview available.";
         let aiRatings: { category: string; stats: { name: string; value: number }[] }[] = [];
         let playerQualityScore: number | null = null;
-        // NEW PARSED FIELDS
         let playerClass: string = 'N/A';
-        let redshirtedFromAI: string = 'Uncertain'; // Store as string for direct output
+        let redshirtedFromAI: string = 'Uncertain'; // Store as string for direct output (now determined by AI)
         let highSchoolRating: string = 'N/A';
         let archetype: string = 'N/A';
         let dealbreaker: string = 'N/A';
@@ -571,7 +608,6 @@ export async function POST(req: NextRequest) {
         }
 
         // Ratings parsing (more robust for categories and individual stats)
-        // Adjusted regex to stop before NEW "## ADDITIONAL PLAYER DETAILS ##" section
         const ratingsSectionMatch = aiResponseText.match(/## RATINGS ##\s*([\s\S]*?)(?=## ADDITIONAL PLAYER DETAILS ##|$)/);
         if (ratingsSectionMatch && ratingsSectionMatch[1]) {
             const rawRatingsContent = ratingsSectionMatch[1].trim();
@@ -597,16 +633,17 @@ export async function POST(req: NextRequest) {
             }
         }
 
-        // NEW: Additional Player Details parsing
+        // Parsing "ADDITIONAL PLAYER DETAILS" section
         const additionalDetailsMatch = aiResponseText.match(/## ADDITIONAL PLAYER DETAILS ##\s*([\s\S]*?)(?=## ASSESSMENT ##|$)/);
         if (additionalDetailsMatch && additionalDetailsMatch[1]) {
             const detailsContent = additionalDetailsMatch[1].trim();
             const classMatch = detailsContent.match(/-\s*Class:\s*(.*)/i);
             if (classMatch && classMatch[1]) playerClass = classMatch[1].trim();
 
+            // Updated: Parse redshirted status from AI's determination
             const redshirtedMatch = detailsContent.match(/-\s*Redshirted:\s*(.*)/i);
             if (redshirtedMatch && redshirtedMatch[1]) {
-                redshirtedFromAI = redshirtedMatch[1].trim(); // Get the string directly from AI
+                redshirtedFromAI = redshirtedMatch[1].trim();
             }
 
             const hsRatingMatch = detailsContent.match(/-\s*High School Rating:\s*(.*)/i);
@@ -644,7 +681,7 @@ export async function POST(req: NextRequest) {
         console.log(`[AI Overview API] Parsed Ratings:`, aiRatings);
         console.log(`[AI Overview API] Parsed Quality Score:`, playerQualityScore);
         console.log(`[AI Overview API] Parsed Player Class:`, playerClass);
-        console.log(`[AI Overview API] Parsed Redshirted (from AI response):`, redshirtedFromAI); // Log what AI returned
+        console.log(`[AI Overview API] Parsed Redshirted (from AI response):`, redshirtedFromAI);
         console.log(`[AI Overview API] Parsed HS Rating:`, highSchoolRating);
         console.log(`[AI Overview API] Parsed Archetype:`, archetype);
         console.log(`[AI Overview API] Parsed Dealbreaker:`, dealbreaker);
@@ -693,7 +730,7 @@ export async function POST(req: NextRequest) {
             playerQualityScore, // Include quality score in response if frontend needs it
             // NEW FIELDS IN RESPONSE
             playerClass,
-            redshirted: determinedRedshirtStatus, // Return the string for clarity, derived from CFBD
+            redshirted: redshirtedFromAI, // Return the AI's determined redshirt status
             highSchoolRating,
             archetype,
             dealbreaker,
