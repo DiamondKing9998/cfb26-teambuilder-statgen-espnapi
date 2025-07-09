@@ -394,16 +394,25 @@ const CollegeFootballApp: React.FC = () => {
                 const teamsData: CfbdTeam[] = await teamsResponse.json();
                 console.log("Raw teamsData from API (for filters) via proxy:", teamsData);
 
-                const filteredTeams = teamsData.filter(
+                const filteredAndSortedTeams = teamsData.filter(
                     (team) => {
                         const classification = team.classification?.toUpperCase();
-                        const isFbsFcs = classification === 'FBS' || classification === 'FCS';
-                        return isFbsFcs;
+                        return classification === 'FBS' || classification === 'FCS';
                     }
-                ).sort((a, b) => a.school.localeCompare(b.school));
+                ).sort((a, b) => {
+                    const classA = a.classification?.toUpperCase();
+                    const classB = b.classification?.toUpperCase();
+
+                    // Prioritize FBS over FCS
+                    if (classA === 'FBS' && classB === 'FCS') return -1;
+                    if (classA === 'FCS' && classB === 'FBS') return 1;
+
+                    // If same classification or other case, sort alphabetically by school name
+                    return a.school.localeCompare(b.school);
+                });
 
                 const nameToIdMap = new Map<string, number>();
-                const collegesForDropdown = filteredTeams.map(team => {
+                const collegesForDropdown = filteredAndSortedTeams.map(team => {
                     nameToIdMap.set(team.school, team.id);
                     return { name: team.school, id: team.id };
                 });
