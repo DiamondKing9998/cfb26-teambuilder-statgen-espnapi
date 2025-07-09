@@ -283,62 +283,62 @@ const CollegeFootballApp: React.FC = () => {
             setPlayerError(null);
 
             try {
-                // --- Fetch Teams from CFBD API via Proxy ---
-                // *** CHANGE THIS YEAR ***
-                // Using a more reliable past year for team data (e.g., 2024 or 2023)
-                // as 2025 data might not be fully available or populated yet in CFBD API.
-                const currentYearForTeams = '2024'; // Changed from '2025' to '2024'
+                const currentYearForTeams = '2024'; // Keeping it 2024 as it has more stable data
                 const teamsProxyUrl = `/api/ai-overview?target=teams&year=${currentYearForTeams}`;
 
-                console.log(`Fetching teams for year: ${currentYearForTeams} via proxy: ${teamsProxyUrl}`);
+                console.log(`[UI] Fetching teams for year: ${currentYearForTeams} via proxy: ${teamsProxyUrl}`);
                 const teamsResponse = await fetch(teamsProxyUrl);
 
                 if (!teamsResponse.ok) {
                     const errorBody = await teamsResponse.text();
-                    console.error(`Error from proxy when fetching teams: ${teamsResponse.status} ${teamsResponse.statusText}. Details:`, errorBody);
+                    console.error(`[UI] Error from proxy when fetching teams: ${teamsResponse.status} ${teamsResponse.statusText}. Details:`, errorBody);
                     throw new Error(`Proxy error fetching teams: ${teamsResponse.status} ${teamsResponse.statusText}. Details: ${errorBody}`);
                 }
 
                 const teamsData: CfbdTeam[] = await teamsResponse.json();
-                console.log("Raw teamsData from API (for filters) via proxy:", teamsData);
+                console.log("[UI] Raw teamsData from API (for filters) via proxy:", teamsData);
 
                 const nameToIdMap = new Map<string, number>();
                 const collegesForDropdown: { name: string; id: number }[] = [];
 
-                teamsData
+                // Filter for FBS/FCS and valid data, then sort as requested
+                const filteredAndSortedTeams = teamsData
                     .filter(
                         (team) => {
-                            const classification = team.classification?.toUpperCase();
-                            const isValid = (classification === 'FBS' || classification === 'FCS') && team.school && typeof team.id === 'number';
-                            if (!isValid) {
-                                // console.log(`Skipping team (invalid classification/data):`, team); // Log skipped teams
-                            }
+                            // Ensure classification is not null and is either 'fbs' or 'fcs' (case-insensitive)
+                            const classification = team.classification?.toLowerCase();
+                            const isValid = (classification === 'fbs' || classification === 'fcs') && team.school && typeof team.id === 'number';
+                            // if (!isValid) {
+                            //     console.log(`[UI] Skipping team (invalid classification/data):`, team);
+                            // }
                             return isValid;
                         }
                     )
                     .sort((a, b) => {
-                        const classA = a.classification?.toUpperCase();
-                        const classB = b.classification?.toUpperCase();
+                        const classA = a.classification?.toLowerCase();
+                        const classB = b.classification?.toLowerCase();
 
-                        if (classA === 'FBS' && classB === 'FCS') return -1;
-                        if (classA === 'FCS' && classB === 'FBS') return 1;
+                        // Sort order: FBS first, then FCS
+                        if (classA === 'fbs' && classB === 'fcs') return -1;
+                        if (classA === 'fcs' && classB === 'fbs') return 1;
 
+                        // If same classification (both FBS or both FCS), sort alphabetically by school name
                         const schoolA = a.school || '';
                         const schoolB = b.school || '';
                         return schoolA.localeCompare(schoolB);
-                    })
-                    .forEach(team => {
-                        nameToIdMap.set(team.school, team.id);
-                        collegesForDropdown.push({ name: team.school, id: team.id });
                     });
+
+                filteredAndSortedTeams.forEach(team => {
+                    nameToIdMap.set(team.school, team.id);
+                    collegesForDropdown.push({ name: team.school, id: team.id });
+                });
 
                 setApiColleges(collegesForDropdown);
                 setCollegeNameToIdMap(nameToIdMap);
-                console.log("Filtered and sorted colleges for dropdown:", collegesForDropdown);
-
+                console.log("[UI] Filtered and sorted colleges for dropdown:", collegesForDropdown);
 
             } catch (error: any) {
-                console.error('Error in fetchFilterOptions:', error);
+                console.error('[UI] Error in fetchFilterOptions:', error);
                 setPlayerError(`Failed to load initial filter options: ${error.message || 'Unknown error'}.`);
             } finally {
                 setIsLoadingFilters(false);
@@ -365,7 +365,7 @@ const CollegeFootballApp: React.FC = () => {
             const queryParams = new URLSearchParams();
             queryParams.append('target', 'players');
 
-            const seasonToQuery = '2025'; // This year is for players, can keep it 2025 if you expect future data
+            const seasonToQuery = '2025';
             queryParams.append('year', seasonToQuery);
 
             if (appliedFilters.college) {
@@ -373,33 +373,23 @@ const CollegeFootballApp: React.FC = () => {
             }
 
             const url = `/api/ai-overview?${queryParams.toString()}`;
-            console.log("Fetching players via proxy URL:", url);
+            console.log("[UI] Fetching players via proxy URL:", url);
 
             const response = await fetch(url);
 
             if (!response.ok) {
                 const errorBody = await response.text();
-                console.error(`Error from proxy: ${response.status} ${response.statusText}. Details:`, errorBody);
+                console.error(`[UI] Error from proxy: ${response.status} ${response.statusText}. Details:`, errorBody);
                 throw new Error(`Proxy error: ${response.status} ${response.statusText}. Details: ${errorBody}`);
             }
 
             const data: CfbdPlayer[] = await response.json();
 
-            // Additional client-side filtering for player name if needed (removed for now)
-            // if (appliedFilters.playerName) {
-            //     const lowerCaseSearch = appliedFilters.playerName.toLowerCase();
-            //     data = data.filter(player =>
-            //         (player.firstName && player.firstName.toLowerCase().includes(lowerCaseSearch)) ||
-            //         (player.lastName && player.lastName.toLowerCase().includes(lowerCaseSearch)) ||
-            //         (player.name && player.name.toLowerCase().includes(lowerCaseSearch))
-            //     );
-            // }
-
             setPlayers(data || []);
-            console.log("Fetched players via proxy:", data);
+            console.log("[UI] Fetched players via proxy:", data);
 
         } catch (error: any) {
-            console.error('Error fetching players:', error);
+            console.error('[UI] Error fetching players:', error);
             setPlayerError(error.message || 'Failed to fetch players. Check network or server logs.');
             setPlayers([]);
         } finally {
@@ -499,7 +489,7 @@ const CollegeFootballApp: React.FC = () => {
                     setSortBy={setSortBy}
                     sortOrder={sortOrder}
                     setSortOrder={setSortOrder}
-                    hasSearched={hasSearched}
+                    hasSearched={hasSearSearched}
                 />
             </div>
 
