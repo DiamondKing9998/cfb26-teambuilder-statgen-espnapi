@@ -57,15 +57,15 @@ interface CfbdTeam {
 
 // --- Component Props Interfaces ---
 interface FilterSidebarProps {
-    onApplyFilters: (filters: { college: string; year: string; position: string; playerName: string }) => void;
+    onApplyFilters: (filters: { college: string; year: string; playerName: string }) => void; // REMOVED position
     colleges: { name: string; id: number }[];
     years: string[];
-    positions: string[];
+    // REMOVED positions: string[];
     isLoadingFilters: boolean;
     onResetFilters: () => void;
     currentCollege: string;
     currentYear: string;
-    currentPosition: string;
+    // REMOVED currentPosition: string;
     currentSearchName: string;
 }
 
@@ -205,17 +205,17 @@ const FilterSidebar: React.FC<FilterSidebarProps> = ({
     onApplyFilters,
     colleges,
     years,
-    positions,
+    // REMOVED positions,
     isLoadingFilters,
     onResetFilters,
     currentCollege,
     currentYear,
-    currentPosition,
+    // REMOVED currentPosition,
     currentSearchName,
 }) => {
     const [collegeValue, setCollegeValue] = useState<string>(currentCollege);
     const [yearValue, setYearValue] = useState<string>(currentYear);
-    const [positionValue, setPositionValue] = useState<string>(currentPosition);
+    // REMOVED const [positionValue, setPositionValue] = useState<string>(currentPosition);
     const [playerNameValue, setPlayerNameValue] = useState<string>(currentSearchName);
 
     // Update internal state when props from parent (CollegeFootballApp) change
@@ -227,9 +227,10 @@ const FilterSidebar: React.FC<FilterSidebarProps> = ({
         setYearValue(currentYear);
     }, [currentYear]);
 
-    useEffect(() => {
-        setPositionValue(currentPosition);
-    }, [currentPosition]);
+    // REMOVED useEffect for position
+    // useEffect(() => {
+    //     setPositionValue(currentPosition);
+    // }, [currentPosition]);
 
     useEffect(() => {
         setPlayerNameValue(currentSearchName);
@@ -241,7 +242,7 @@ const FilterSidebar: React.FC<FilterSidebarProps> = ({
         onApplyFilters({
             college: collegeValue,
             year: yearValue,
-            position: positionValue,
+            // REMOVED position: positionValue,
             playerName: playerNameValue.trim(),
         });
     };
@@ -249,7 +250,7 @@ const FilterSidebar: React.FC<FilterSidebarProps> = ({
     const handleReset = () => {
         setCollegeValue('');
         setYearValue('');
-        setPositionValue('');
+        // REMOVED setPositionValue('');
         setPlayerNameValue('');
         onResetFilters(); // Trigger reset in parent
     };
@@ -292,7 +293,8 @@ const FilterSidebar: React.FC<FilterSidebarProps> = ({
                             </select>
                         </div>
 
-                        <div className="filter-group">
+                        {/* REMOVED Position Filter Group */}
+                        {/* <div className="filter-group">
                             <h3>Position</h3>
                             <select
                                 value={positionValue}
@@ -303,7 +305,7 @@ const FilterSidebar: React.FC<FilterSidebarProps> = ({
                                     <option key={pos} value={pos}>{pos}</option>
                                 ))}
                             </select>
-                        </div>
+                        </div> */}
 
                         <div className="filter-group">
                             <h3>Player Name</h3>
@@ -332,7 +334,7 @@ const CollegeFootballApp: React.FC = () => {
     const [appliedFilters, setAppliedFilters] = useState({
         college: '',
         year: '',
-        position: '',
+        // REMOVED position: '',
         playerName: '',
     });
 
@@ -351,7 +353,7 @@ const CollegeFootballApp: React.FC = () => {
     const [isLoadingFilters, setIsLoadingFilters] = useState(true);
     const [apiColleges, setApiColleges] = useState<{ name: string; id: number }[]>([]);
     const [apiYears, setApiYears] = useState<string[]>([]);
-    const [apiPositions, setApiPositions] = useState<string[]>([]);
+    // REMOVED const [apiPositions, setApiPositions] = useState<string[]>([]); // No longer needed
 
     const [collegeNameToIdMap, setCollegeNameToIdMap] = useState<Map<string, number>>(new Map());
 
@@ -374,7 +376,7 @@ const CollegeFootballApp: React.FC = () => {
 
                 // --- Fetch Teams from CFBD API via Proxy ---
                 const currentYearForTeams = '2024'; // Using a fixed year for teams for now
-                // MODIFIED: Changed proxy path from /api/cfbd-proxy to /api/ai-overview
+                // MODIFIED: Proxy path changed to /api/ai-overview as previously corrected
                 const teamsProxyUrl = `/api/ai-overview?target=teams&year=${currentYearForTeams}`;
 
                 console.log(`Fetching teams for year: ${currentYearForTeams} via proxy: ${teamsProxyUrl}`);
@@ -383,6 +385,9 @@ const CollegeFootballApp: React.FC = () => {
                 if (!teamsResponse.ok) {
                     const errorBody = await teamsResponse.text();
                     console.error(`Error from proxy when fetching teams: ${teamsResponse.status} ${teamsResponse.statusText}. Details:`, errorBody);
+                    // Crucial: The error "Player ID is required" means this proxy endpoint /api/ai-overview
+                    // is not set up to fetch a list of teams. It's expecting a playerID.
+                    // This specific error indicates a backend proxy misconfiguration for this type of request.
                     throw new Error(`Proxy error fetching teams: ${teamsResponse.status} ${teamsResponse.statusText}. Details: ${errorBody}`);
                 }
 
@@ -407,14 +412,13 @@ const CollegeFootballApp: React.FC = () => {
                 setCollegeNameToIdMap(nameToIdMap);
 
 
-                // --- Fetch Positions from a known list ---
-                const commonPositions = [
-                    'QB', 'K', 'P', 'LS', 'RB', 'FB', 'WR', 'TE', 'C', 'OG', 'OT', 'OL',
-                    'DE', 'DT', 'DL', 'LB', 'ILB', 'OLB', 'CB', 'S', 'DB', 'FS', 'SS',
-                    'ATH', 'PK', 'ST'
-                ].sort();
-
-                setApiPositions(commonPositions);
+                // --- REMOVED Fetch Positions logic ---
+                // const commonPositions = [
+                //     'QB', 'K', 'P', 'LS', 'RB', 'FB', 'WR', 'TE', 'C', 'OG', 'OT', 'OL',
+                //     'DE', 'DT', 'DL', 'LB', 'ILB', 'OLB', 'CB', 'S', 'DB', 'FS', 'SS',
+                //     'ATH', 'PK', 'ST'
+                // ].sort();
+                // setApiPositions(commonPositions);
 
             } catch (error: any) {
                 console.error('Error in fetchFilterOptions:', error);
@@ -433,31 +437,42 @@ const CollegeFootballApp: React.FC = () => {
         setPlayerError(null);
         setPlayers([]); // Clear previous results immediately
 
-        const hasActiveFilters = Object.values(appliedFilters).some(value => value !== '');
-        if (!hasActiveFilters && !hasSearched) { // Only return if no filters are set and no search has been initiated
-            setIsLoadingPlayers(false);
-            return;
+        // Only proceed with fetching if college AND year are selected, OR if a player name is entered.
+        // If only player name, this will be a broad search across all years/teams.
+        // If college and year are selected, it will search that roster.
+        // If no filters are active and no search has been explicitly made, do nothing.
+        const hasCollegeAndYear = appliedFilters.college !== '' && appliedFilters.year !== '';
+        const hasPlayerName = appliedFilters.playerName.trim() !== '';
+
+        if (!hasCollegeAndYear && !hasPlayerName && !hasSearched) {
+             setIsLoadingPlayers(false);
+             return;
         }
 
         try {
             const queryParams = new URLSearchParams();
-            queryParams.append('target', 'players');
+            queryParams.append('target', 'players'); // Target the players endpoint in your proxy
 
-            // Default to the latest year if no year is selected and years are loaded
+            // The CFBD API's /players endpoint requires a year.
+            // If no year is selected, default to the latest available year.
             const seasonToQuery = appliedFilters.year || (apiYears.length > 0 ? apiYears[0] : '2024');
             queryParams.append('year', seasonToQuery);
 
             if (appliedFilters.college) {
                 queryParams.append('team', appliedFilters.college);
             }
-            if (appliedFilters.position) {
-                queryParams.append('position', appliedFilters.position);
-            }
+            // If player name is provided, append it. This will filter the team's roster if a team is selected.
+            // If no team is selected, it will search broadly by name across the chosen year.
             if (appliedFilters.playerName) {
                 queryParams.append('search', appliedFilters.playerName);
             }
 
-            // MODIFIED: Changed proxy path from /api/cfbd-proxy to /api/ai-overview
+            // REMOVED position filter from query params
+            // if (appliedFilters.position) {
+            //     queryParams.append('position', appliedFilters.position);
+            // }
+
+            // MODIFIED: Proxy path changed to /api/ai-overview as previously corrected
             const url = `/api/ai-overview?${queryParams.toString()}`;
             console.log("Fetching players via proxy URL:", url);
 
@@ -466,6 +481,9 @@ const CollegeFootballApp: React.FC = () => {
             if (!response.ok) {
                 const errorBody = await response.text();
                 console.error(`Error from proxy: ${response.status} ${response.statusText}. Details:`, errorBody);
+                // Crucial: The error "Player ID is required" means this proxy endpoint /api/ai-overview
+                // is not set up to fetch a list of players. It's expecting a playerID.
+                // This specific error indicates a backend proxy misconfiguration for this type of request.
                 throw new Error(`Proxy error: ${response.status} ${response.statusText}. Details: ${errorBody}`);
             }
 
@@ -483,21 +501,28 @@ const CollegeFootballApp: React.FC = () => {
         }
     }, [appliedFilters, apiYears, hasSearched]); // Added hasSearched to dependencies
 
+
     // Trigger player fetch when filters change or initially if a default search should occur
     useEffect(() => {
-        if (hasSearched || Object.values(appliedFilters).some(value => value !== '')) {
+        // Only fetch players if a search has been initiated or if there are active filters (excluding just player name without team/year)
+        const shouldFetch = hasSearched || (appliedFilters.college !== '' || appliedFilters.year !== '' || appliedFilters.playerName.trim() !== '');
+
+        // However, if the user only types a player name without a team/year, it implies a broader search.
+        // If they select team/year, it's a roster search.
+        // We ensure `fetchPlayers` is called when filters change. The `fetchPlayers` logic handles empty states.
+        if (shouldFetch) {
             fetchPlayers();
         }
     }, [fetchPlayers, appliedFilters, hasSearched]);
 
 
-    const handleApplyFilters = useCallback((filters: { college: string; year: string; position: string; playerName: string }) => {
+    const handleApplyFilters = useCallback((filters: { college: string; year: string; playerName: string }) => {
         setAppliedFilters(filters);
         setHasSearched(true); // Mark that a search has been initiated
     }, []);
 
     const handleResetAllFilters = useCallback(() => {
-        setAppliedFilters({ college: '', year: '', position: '', playerName: '' });
+        setAppliedFilters({ college: '', year: '', playerName: '' }); // REMOVED position
         setPlayers([]);
         setPlayerError(null);
         setSortBy('lastName'); // Reset sort options
@@ -521,7 +546,7 @@ const CollegeFootballApp: React.FC = () => {
                         return player.lastName || '';
                     case 'firstName':
                         return player.firstName || '';
-                    case 'position':
+                    case 'position': // Position sorting remains as players still have positions
                         return player.position || '';
                     case 'jersey':
                         // Use 0 for null/invalid jersey numbers to sort them consistently (e.g., at the beginning/end)
@@ -552,7 +577,7 @@ const CollegeFootballApp: React.FC = () => {
             <header> {/* Uses the header class from globals.css */}
                 <h1>CFB26 Teambuilder</h1>
                 <p>College Football Player Search (CFBD API)</p>
-                <p>Find college players by team, season, position, or name.</p>
+                <p>Find college players by team, season, or name.</p> {/* Updated description */}
             </header>
 
             <div className="main-container"> {/* Uses the .main-container class from globals.css */}
@@ -560,12 +585,12 @@ const CollegeFootballApp: React.FC = () => {
                     onApplyFilters={handleApplyFilters}
                     colleges={apiColleges}
                     years={apiYears}
-                    positions={apiPositions}
+                    // REMOVED positions={apiPositions}
                     isLoadingFilters={isLoadingFilters}
                     onResetFilters={handleResetAllFilters}
                     currentCollege={appliedFilters.college}
                     currentYear={appliedFilters.year}
-                    currentPosition={appliedFilters.position}
+                    // REMOVED currentPosition={appliedFilters.position}
                     currentSearchName={appliedFilters.playerName}
                 />
                 <PlayerResults
