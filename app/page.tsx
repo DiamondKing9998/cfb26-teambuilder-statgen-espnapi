@@ -489,7 +489,7 @@ const CollegeFootballApp: React.FC = () => {
                     setSortBy={setSortBy}
                     sortOrder={sortOrder}
                     setSortOrder={setSortOrder}
-                    hasSearched={hasSearSearched}
+                    hasSearched={hasSearched}
                 />
             </div>
 
