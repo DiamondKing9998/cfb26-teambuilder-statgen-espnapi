@@ -8,7 +8,7 @@ import Link from 'next/link';
 // --- Interfaces for CollegeFootballData.com API ---
 
 interface CfbdPlayer {
-    id: string; // Changed from number to string based on sample data
+    id: string; // Keep as string for players, as their IDs might vary or come from different endpoints
     team: string; // e.g., "Michigan"
     name: string; // Full name, e.g., "Aidan Hutchinson"
     firstName: string; // e.g., "Aidan"
@@ -23,8 +23,8 @@ interface CfbdPlayer {
 }
 
 interface CfbdTeam {
-    id: string; // Updated to string to correctly handle IDs like "2000"
-    school: string;
+    id: number; // REVERTED TO NUMBER - This is crucial if CFBD API returns numbers for team IDs
+    school: string; // CFBD uses 'school', not 'collegeDisplayName'
     mascot: string | null;
     abbreviation: string | null;
     alt_name1: string | null;
@@ -35,7 +35,7 @@ interface CfbdTeam {
     classification: string | null;
     color: string | null;
     alt_color: string | null;
-    logos: string[] | null;
+    logos: string[] | null; // CFBD provides 'logos' as an array of strings
     twitter: string | null;
     location: {
         venue_id: number | null;
@@ -55,7 +55,7 @@ interface CfbdTeam {
     } | null;
 }
 
-// --- Component Props Interfaces ---
+// --- Component Props Interfaces (No changes needed here as they use the CfbdTeam type) ---
 interface FilterSidebarProps {
     onApplyFilters: (filters: { college: string }) => void;
     colleges: { name: string; id: number }[];
@@ -230,7 +230,7 @@ const FilterSidebar: React.FC<FilterSidebarProps> = ({
                                 {colleges.length > 0 ? (
                                     colleges.map((college) => (
                                         <option
-                                            key={college.id} // This key is a number now
+                                            key={college.id} // This key is correctly a number
                                             value={college.name}
                                         >
                                             {college.name || `Team ID: ${college.id}`}
@@ -272,7 +272,7 @@ const CollegeFootballApp: React.FC = () => {
 
 
     const [isLoadingFilters, setIsLoadingFilters] = useState(true);
-    const [apiColleges, setApiColleges] = useState<{ name: string; id: number }[]>([]); // id is number here
+    const [apiColleges, setApiColleges] = useState<{ name: string; id: number }[]>([]);
     const [collegeNameToIdMap, setCollegeNameToIdMap] = useState<Map<string, number>>(new Map());
 
 
@@ -308,8 +308,8 @@ const CollegeFootballApp: React.FC = () => {
                         const isFbsOrFcs = (classification === 'fbs' || classification === 'fcs');
                         const hasSchool = !!team.school;
 
-                        // Check if ID is a string and can be converted to a valid number
-                        const isValidId = typeof team.id === 'string' && !isNaN(Number(team.id));
+                        // Check if ID is a number
+                        const isValidId = typeof team.id === 'number' && !isNaN(team.id);
 
                         if (classification === 'ii' || classification === 'iii') {
                             console.log(`[UI - DEBUG Filter Out] Team ${team.school || team.id || 'Unknown'} filtered out: Classification is II/III (${team.classification}).`);
@@ -318,7 +318,7 @@ const CollegeFootballApp: React.FC = () => {
                             console.log(`[UI - DEBUG Filter Out] Team ${team.school || team.id || 'Unknown'} filtered out: School name is missing/empty.`);
                         }
                         if (!isValidId) {
-                            console.log(`[UI - DEBUG Filter Out] Team ${team.school || team.id || 'Unknown'} filtered out: ID is not a valid numeric string (${team.id}, type: ${typeof team.id}).`);
+                            console.log(`[UI - DEBUG Filter Out] Team ${team.school || team.id || 'Unknown'} filtered out: ID is not a valid number (${team.id}, type: ${typeof team.id}).`);
                         }
 
                         return isFbsOrFcs && hasSchool && isValidId;
@@ -347,10 +347,9 @@ const CollegeFootballApp: React.FC = () => {
                     });
 
                 filteredAndSortedTeams.forEach(team => {
-                    // Convert string ID to number for consistent usage in the dropdown's key prop (collegesForDropdown.id)
-                    const numericId = Number(team.id);
-                    nameToIdMap.set(team.school, numericId);
-                    collegesForDropdown.push({ name: team.school, id: numericId });
+                    // ID is already a number based on CfbdTeam.id: number
+                    nameToIdMap.set(team.school, team.id);
+                    collegesForDropdown.push({ name: team.school, id: team.id });
                 });
 
                 setApiColleges(collegesForDropdown);
