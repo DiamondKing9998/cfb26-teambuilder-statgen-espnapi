@@ -286,17 +286,26 @@ const CollegeFootballApp: React.FC = () => {
                 const currentYearForTeams = '2024'; // Keeping it 2024 as it has more stable data
                 const teamsProxyUrl = `/api/ai-overview?target=teams&year=${currentYearForTeams}`;
 
-                console.log(`[UI] Fetching teams for year: ${currentYearForTeams} via proxy: ${teamsProxyUrl}`);
+                console.log(`[UI - Fetch Filter Options] Fetching teams for year: ${currentYearForTeams} via proxy: ${teamsProxyUrl}`);
                 const teamsResponse = await fetch(teamsProxyUrl);
 
                 if (!teamsResponse.ok) {
                     const errorBody = await teamsResponse.text();
-                    console.error(`[UI] Error from proxy when fetching teams: ${teamsResponse.status} ${teamsResponse.statusText}. Details:`, errorBody);
+                    console.error(`[UI - Fetch Filter Options] Error from proxy when fetching teams: ${teamsResponse.status} ${teamsResponse.statusText}. Details:`, errorBody);
                     throw new Error(`Proxy error fetching teams: ${teamsResponse.status} ${teamsResponse.statusText}. Details: ${errorBody}`);
                 }
 
                 const teamsData: CfbdTeam[] = await teamsResponse.json();
-                console.log("[UI] Raw teamsData from API (for filters) via proxy:", teamsData);
+                console.log("[UI - Fetch Filter Options] Raw teamsData from API (for filters) via proxy:", teamsData);
+
+                // --- DEBUG STEP 1: Raw FBS/FCS teams before any sorting/mapping ---
+                const rawFbsFcsTeams = teamsData.filter(team => {
+                    const classification = team.classification?.toLowerCase();
+                    return (classification === 'fbs' || classification === 'fcs') && team.school && typeof team.id === 'number';
+                });
+                console.log("[UI - DEBUG] Raw filtered FBS/FCS teams (before custom sort):", rawFbsFcsTeams.map(t => ({ school: t.school, classification: t.classification })));
+                // --- END DEBUG STEP 1 ---
+
 
                 const nameToIdMap = new Map<string, number>();
                 const collegesForDropdown: { name: string; id: number }[] = [];
@@ -305,12 +314,8 @@ const CollegeFootballApp: React.FC = () => {
                 const filteredAndSortedTeams = teamsData
                     .filter(
                         (team) => {
-                            // Ensure classification is not null and is either 'fbs' or 'fcs' (case-insensitive)
                             const classification = team.classification?.toLowerCase();
                             const isValid = (classification === 'fbs' || classification === 'fcs') && team.school && typeof team.id === 'number';
-                            // if (!isValid) {
-                            //     console.log(`[UI] Skipping team (invalid classification/data):`, team);
-                            // }
                             return isValid;
                         }
                     )
@@ -318,11 +323,11 @@ const CollegeFootballApp: React.FC = () => {
                         const classA = a.classification?.toLowerCase();
                         const classB = b.classification?.toLowerCase();
 
-                        // Sort order: FBS first, then FCS
+                        // FBS comes before FCS
                         if (classA === 'fbs' && classB === 'fcs') return -1;
                         if (classA === 'fcs' && classB === 'fbs') return 1;
 
-                        // If same classification (both FBS or both FCS), sort alphabetically by school name
+                        // Within the same classification, sort alphabetically by school name
                         const schoolA = a.school || '';
                         const schoolB = b.school || '';
                         return schoolA.localeCompare(schoolB);
@@ -335,10 +340,13 @@ const CollegeFootballApp: React.FC = () => {
 
                 setApiColleges(collegesForDropdown);
                 setCollegeNameToIdMap(nameToIdMap);
-                console.log("[UI] Filtered and sorted colleges for dropdown:", collegesForDropdown);
+
+                // --- DEBUG STEP 2: Final sorted FBS/FCS teams for dropdown ---
+                console.log("[UI - DEBUG] Final sorted FBS/FCS teams for dropdown:", collegesForDropdown);
+                // --- END DEBUG STEP 2 ---
 
             } catch (error: any) {
-                console.error('[UI] Error in fetchFilterOptions:', error);
+                console.error('[UI - Fetch Filter Options] Error in fetchFilterOptions:', error);
                 setPlayerError(`Failed to load initial filter options: ${error.message || 'Unknown error'}.`);
             } finally {
                 setIsLoadingFilters(false);
@@ -373,23 +381,23 @@ const CollegeFootballApp: React.FC = () => {
             }
 
             const url = `/api/ai-overview?${queryParams.toString()}`;
-            console.log("[UI] Fetching players via proxy URL:", url);
+            console.log("[UI - Fetch Players] Fetching players via proxy URL:", url);
 
             const response = await fetch(url);
 
             if (!response.ok) {
                 const errorBody = await response.text();
-                console.error(`[UI] Error from proxy: ${response.status} ${response.statusText}. Details:`, errorBody);
+                console.error(`[UI - Fetch Players] Error from proxy: ${response.status} ${response.statusText}. Details:`, errorBody);
                 throw new Error(`Proxy error: ${response.status} ${response.statusText}. Details: ${errorBody}`);
             }
 
             const data: CfbdPlayer[] = await response.json();
 
             setPlayers(data || []);
-            console.log("[UI] Fetched players via proxy:", data);
+            console.log("[UI - Fetch Players] Fetched players via proxy:", data);
 
         } catch (error: any) {
-            console.error('[UI] Error fetching players:', error);
+            console.error('[UI - Fetch Players] Error fetching players:', error);
             setPlayerError(error.message || 'Failed to fetch players. Check network or server logs.');
             setPlayers([]);
         } finally {
