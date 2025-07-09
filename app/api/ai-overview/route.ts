@@ -5,8 +5,9 @@ import OpenAI from 'openai';
 import { headers } from 'next/headers'; // Import headers for API key access
 
 // Define interfaces for type safety
+
 // Interface for the detailed player data from ESPN (used for AI overview)
-interface ESPNPlayer {
+interface ESPNPlayerDetail { // Renamed for clarity vs. roster player
     id: string;
     firstName: string;
     lastName: string;
@@ -16,9 +17,21 @@ interface ESPNPlayer {
     displayWeight: string;
     jersey: string;
     hometown: { city: string; state: string };
-    team: { displayName: string; logos: { href: string }[]; color: string; alternateColor: string };
+    team: { displayName: string; logos: { href: string }[]; color: string; alternateColor: string; slug: string }; // Added slug for lookup
     college: { year: string; redshirted: boolean };
     recruit: { rating: string | null; positionRank: string | null };
+}
+
+// Interface for Players from ESPN Roster (list of players)
+interface ESPNRosterPlayer {
+    id: string;
+    firstName: string;
+    lastName: string;
+    fullName: string;
+    position: { displayName: string };
+    jersey: string;
+    // Add other relevant fields for the roster list view
+    team: { displayName: string; slug: string }; // Basic team info
 }
 
 // Interface for Assigned Abilities
@@ -28,34 +41,48 @@ interface AssignedAbility {
     description: string;
 }
 
-// Interfaces for College Football Data API (for players)
-interface CfbdPlayerBasic {
+// Interfaces for College Football Data API (for teams)
+interface CFBDTeam {
     id: number;
-    first_name: string;
-    last_name: string;
-    team: string;
-    position: string;
-    // Add other fields as needed from CFBD API for basic player list
+    school: string; // Team name
+    mascot: string;
+    abbreviation: string;
+    conference: string;
+    classification: string; // 'fbs' or 'fcs'
+    color: string;
+    alt_color: string;
+    logos: string[]; // URLs for logos
+    // Add other fields as needed from CFBD API for basic team list
 }
 
-// Interface for ESPN Teams API
-interface ESPNTeam {
+// Interface for ESPN Teams API (needed internally for player lookup)
+interface ESPNTeamLookupData {
     id: string;
+    uid: string;
+    slug: string;
+    abbreviation: string;
     displayName: string;
     shortDisplayName: string;
-    abbreviation: string;
-    isActive: boolean;
-    logos: { href: string }[];
+    name: string;
+    nickname: string;
+    location: string;
     color: string;
     alternateColor: string;
-    groups: {
+    isActive: boolean;
+    isAllStar: boolean;
+    logos: { href: string; alt: string; rel: string[]; width: number; height: number }[];
+    groups?: {
         id: string;
         name: string;
         isConference: boolean;
-        isFootballBowlSubdivision: boolean; // This will indicate FBS
+        isFootballBowlSubdivision: boolean;
         parentGroupId?: string;
-        // Add other group properties if needed
     };
+}
+
+// Interface for the item wrapper in ESPN team list response
+interface ESPNTeamArrayItem {
+    team: ESPNTeamLookupData;
 }
 
 
@@ -64,7 +91,7 @@ const allAbilities = [
     { name: "Backfield Creator", positions: ["QB"], description: "Exceptional at creating plays from the backfield." },
     { name: "Off Platform", positions: ["QB"], description: "Throws accurately while throwing off-platform." },
     { name: "Pull Down", positions: ["QB"], description: "Can quickly pull the ball down and run." },
-    { name: "On Time", positions: ["QB"], "description": "Delivers accurate passes with perfect timing." },
+    { name: "On Time", positions: ["QB"], description: "Delivers accurate passes with perfect timing." },
     { name: "Sleight Of Hand", positions: ["QB"], description: "Excels at faking handoffs and play-action." },
     { name: "Mobile Deadeye", positions: ["QB"], description: "Maintains accuracy while throwing on the run." },
     { name: "Dual Threat", positions: ["QB"], description: "Effective passer and runner." },
@@ -144,42 +171,30 @@ const allAbilities = [
     { name: "Speed Rusher", positions: ["DL"], description: "Uses speed and agility to get around blockers." },
 
     // Linebackers
-    { name: "Lurker", positions: ["LB"], description: "Excellent at intercepting passes from the middle." },
-    { name: "House Call", positions: ["LB", "CB", "S"], description: "Capable of returning turnovers for touchdowns." },
-    { name: "Knockout", positions: ["LB", "CB", "S"], description: "Delivers powerful hits to dislodge the ball." },
-    { name: "Bouncer", positions: ["LB", "S"], description: "Bounces off blocks and continues pursuit." },
-    { name: "Hammer", positions: ["LB", "S"], description: "Delivers forceful, tackle-breaking hits." },
-    { name: "Signal Caller", positions: ["LB"], description: "Commands the defense and makes pre-snap adjustments." },
-    { name: "Thumper", positions: ["LB"], description: "A hard-hitting run stopper." },
-    { name: "Aftershock", positions: ["LB", "S"], description: "Delivers secondary hits to disrupt plays even after the initial tackle." },
+    { name: "Lurker", positions: ["LB"], description: "Disguises coverage and surprises quarterbacks." },
+    { name: "Tackling Machine", positions: ["LB", "DB"], description: "Consistently makes tackles, rarely missing." },
+    { name: "Coverage Specialist", positions: ["LB", "DB"], description: "Excels in pass coverage against receivers and tight ends." },
+    { name: "Run Stopper", positions: ["LB", "DL"], description: "Dominant against the run, clogs lanes." },
+    { name: "Pass Rush Specialist", positions: ["LB", "DL"], description: "An elite pass rusher from the linebacker position." },
 
-    // Cornerbacks
-    { name: "Boundary Jammer", positions: ["CB"], description: "Excels at pressing receivers on the sideline." },
-    { name: "Blanket Coverage", positions: ["CB", "S"], description: "Sticks tightly to receivers in man coverage." },
-    { name: "Bump and Run", positions: ["CB"], description: "Effective at disrupting routes with physical press coverage." },
-    { name: "Ballhawk", positions: ["CB", "S"], description: "Instinctive playmaker for interceptions." },
-    { name: "Shutdown", positions: ["CB"], description: "Consistently neutralizes the opposing team's top receiver." },
-    { name: "Pick Artist", positions: ["CB", "S"], description: "Exceptional at reading QBs and intercepting passes." },
+    // Defensive Backs (Cornerbacks & Safeties)
+    { name: "Ball Hawk", positions: ["CB", "S"], description: "Instinctively finds and attacks the ball in the air." },
+    { name: "Man Coverage", positions: ["CB"], description: "Locks down receivers in man-to-man coverage." },
+    { name: "Zone Hawk", positions: ["CB", "S"], description: "Reads and reacts effectively to plays in zone coverage." },
+    { name: "Big Hitter", positions: ["S", "LB"], description: "Delivers impactful hits, often forcing fumbles or incompletions." },
+    { name: "Return Specialist", positions: ["CB", "S", "WR", "HB"], description: "Elite kick and/or punt returner." },
+    { name: "Closer", positions: ["CB", "S"], description: "Finishes plays strong, making critical tackles or deflections." },
+    { name: "Decoy", positions: ["CB", "S", "WR"], description: "Draws attention away from other players effectively." },
+    { name: "Enforcer", positions: ["S"], description: "Imposes physical will on opposing players." },
+    { name: "Versatile", positions: ["CB", "S", "LB"], description: "Can play multiple roles in the secondary or defense." },
+    { name: "Pinch", positions: ["CB", "S"], description: "Quickly diagnoses and breaks on short passes." },
 
-    // Safeties
-    { name: "Box Safety", positions: ["S"], description: "Strong run defender who plays effectively near the line of scrimmage." },
-    { name: "Free Safety", positions: ["S"], description: "Covers a deep portion of the field and makes plays on the ball." },
-    { name: "Versatile Safety", positions: ["S"], description: "Can play effectively in both run support and pass coverage." },
-    { name: "Field General", positions: ["S"], description: "Directs defensive backs and communicates effectively." },
-    { name: "Tackling Machine", positions: ["S"], description: "A reliable open-field tackler." },
-    { name: "Enforcer", positions: ["S"], description: "Delivers punishing hits to intimidate opponents." },
-
-    // Kickers/Punters
-    { name: "Accurate Kicker", positions: ["K"], description: "Consistently makes field goals and extra points." },
-    { name: "Long-Range Kicker", positions: ["K"], description: "Capable of making field goals from long distances." },
-    { name: "Punt Master", positions: ["P"], description: "Delivers accurate and long punts." },
-    { name: "Coffin Corner", positions: ["P"], description: "Consistently pins opponents deep inside their own territory." },
-    { name: "Hang Time", positions: ["P"], description: "Generates exceptional hang time on punts, limiting returns." },
-
-    // Returners
-    { name: "Kick Returner", positions: ["RB", "WR", "CB", "S"], description: "Excels at returning kicks for significant yardage." },
-    { name: "Punt Returner", positions: ["RB", "WR", "CB", "S"], description: "Dangerous punt returner who can break tackles and find open space." },
-    { name: "Dynamic Returner", positions: ["RB", "WR", "CB", "S"], description: "Consistently creates big plays on special teams returns." },
+    // Kickers & Punters
+    { name: "Accurate Kicker", positions: ["K"], description: "High accuracy on field goals and extra points." },
+    { name: "Long Range Kicker", positions: ["K"], description: "Can consistently make kicks from long distances." },
+    { name: "Hangtime Punter", positions: ["P"], description: "Punts with exceptional hangtime, limiting returns." },
+    { name: "Accurate Punter", positions: ["P"], description: "Consistently places punts precisely." },
+    { name: "Touchback Specialist", positions: ["K"], description: "Consistently kicks touchbacks on kickoffs." },
 ];
 
 const tiers = ["Gold", "Silver", "Bronze"];
@@ -189,46 +204,54 @@ export async function GET(request: NextRequest) {
     const target = searchParams.get('target');
     const playerId = searchParams.get('playerId');
     const year = searchParams.get('year');
-    const team = searchParams.get('team');
+    const team = searchParams.get('team'); // This will now be CFBD team name for players target
     const search = searchParams.get('search');
 
     // Retrieve API keys from environment variables
-    const CFBD_API_KEY = process.env.CFBD_API_KEY; // Still needed for players endpoint
+    const CFBD_API_KEY = process.env.CFBD_API_KEY;
     const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
     // Check for necessary API keys based on potential usage
     if (!OPENAI_API_KEY) {
         return NextResponse.json({ error: 'OPENAI_API_KEY is not set in environment variables.' }, { status: 500 });
     }
-    // CFBD_API_KEY is only needed for 'players' target, so we check it conditionally below
+    // CFBD_API_KEY is only needed for 'players' and 'teams' target, so we check it conditionally below
 
     // --- Handle different API targets ---
 
-    // 1. Fetch Teams from ESPN API
+    // 1. Fetch Teams from CFBD API (FBS/FCS Team List Filter data)
     if (target === 'teams') {
+        if (!CFBD_API_KEY) {
+            return NextResponse.json({ error: 'CFBD_API_KEY is not set for fetching teams.' }, { status: 500 });
+        }
         try {
-            console.log('[API Route] Fetching teams from ESPN API...');
-            // ESPN Teams API does not require an API key
-            const teamsResponse = await fetch(`http://site.api.espn.com/apis/site/v2/sports/football/college-football/teams`);
+            console.log('[API Route] Fetching teams from College Football Data API...');
+            const teamsResponse = await fetch(`https://api.collegefootballdata.com/teams`, {
+                headers: {
+                    'Authorization': `Bearer ${CFBD_API_KEY}`,
+                    'Accept': 'application/json',
+                },
+            });
 
             if (!teamsResponse.ok) {
-                console.error(`Error fetching teams from ESPN: ${teamsResponse.status} ${teamsResponse.statusText}`);
+                console.error(`Error fetching teams from CFBD: ${teamsResponse.status} ${teamsResponse.statusText}`);
                 return NextResponse.json({ error: `Failed to fetch teams: ${teamsResponse.statusText}` }, { status: teamsResponse.status });
             }
 
-            const teamsJson = await teamsResponse.json();
-            console.log('[API Route] Raw ESPN Teams Data:', JSON.stringify(teamsJson, null, 2)); // ADDED LINE
-            // ESPN API structure has sports -> 0 -> leagues -> 0 -> teams
-            const espnTeams: ESPNTeam[] = teamsJson.sports?.[0]?.leagues?.[0]?.teams || [];
+            const teamsJson: CFBDTeam[] = await teamsResponse.json();
+            console.log('[API Route] Raw CFBD Teams Data:', JSON.stringify(teamsJson, null, 2));
 
-            // Map ESPN team data to a more simplified structure, including classification
-            const formattedTeams = espnTeams.map(team => ({
-                id: team.id,
-                name: team.displayName,
-                mascot: team.shortDisplayName, // Using shortDisplayName as mascot, adjust if a proper mascot field is found
-                conference: team.groups?.name || 'N/A', // Use conference name from groups if available
-                classification: team.groups?.isFootballBowlSubdivision ? 'FBS' : 'FCS', // Determine FBS/FCS
-                // You might add more fields from ESPNTeam if needed in the frontend
+            // Map CFBD team data to a simplified structure
+            const formattedTeams = teamsJson.map(team => ({
+                id: team.id.toString(), // Convert number ID to string
+                name: team.school,
+                mascot: team.mascot,
+                conference: team.conference || 'N/A',
+                classification: team.classification.toUpperCase(), // 'fbs' -> 'FBS'
+                color: team.color || '#000000',
+                alternateColor: team.alt_color || '#FFFFFF',
+                logo: team.logos?.[0] || '', // Primary logo
+                darkLogo: team.logos?.[1] || team.logos?.[0] || '', // Alternative/dark logo
             }));
 
             return NextResponse.json(formattedTeams);
@@ -239,39 +262,92 @@ export async function GET(request: NextRequest) {
         }
     }
 
-    // 2. Fetch Players from College Football Data API
+    // 2. Fetch Players (Roster data) from ESPN API
     if (target === 'players') {
-        if (!CFBD_API_KEY) {
-            return NextResponse.json({ error: 'CFBD_API_KEY is not set in environment variables for player fetching.' }, { status: 500 });
-        }
         if (!year) {
             return NextResponse.json({ error: 'Year is required for fetching players' }, { status: 400 });
         }
+        if (!team) {
+             return NextResponse.json({ error: 'Team name is required for fetching ESPN roster data' }, { status: 400 });
+        }
 
         try {
-            console.log(`[API Route] Fetching players from College Football Data API for year ${year}, team ${team || 'all'}, search "${search || 'none'}"`);
-            let playersUrl = `https://api.collegefootballdata.com/players?year=${year}`;
-            if (team) {
-                playersUrl += `&team=${encodeURIComponent(team)}`;
+            console.log(`[API Route] Fetching ESPN team details to find ESPN ID for team: ${team}`);
+            // First, fetch all ESPN teams to find the corresponding ESPN team ID/slug for the given CFBD team name
+            const espnTeamsResponse = await fetch(`http://site.api.espn.com/apis/site/v2/sports/football/college-football/teams`);
+            if (!espnTeamsResponse.ok) {
+                console.error(`Error fetching ESPN teams for lookup: ${espnTeamsResponse.status} ${espnTeamsResponse.statusText}`);
+                return NextResponse.json({ error: `Failed to lookup ESPN team: ${espnTeamsResponse.statusText}` }, { status: espnTeamsResponse.status });
             }
-            if (search) {
-                playersUrl += `&search=${encodeURIComponent(search)}`;
+            const espnTeamsJson = await espnTeamsResponse.json();
+            const allEspnTeams: ESPNTeamArrayItem[] = espnTeamsJson.sports?.[0]?.leagues?.[0]?.teams || [];
+
+            // Find the ESPN team that matches the CFBD team name (case-insensitive and flexible matching)
+            const matchedEspnTeam = allEspnTeams.find(item =>
+                item.team.displayName.toLowerCase() === team.toLowerCase() ||
+                item.team.shortDisplayName.toLowerCase() === team.toLowerCase() ||
+                item.team.slug.toLowerCase() === team.toLowerCase()
+            );
+
+            if (!matchedEspnTeam) {
+                return NextResponse.json({ error: `Could not find ESPN team ID for CFBD team: ${team}` }, { status: 404 });
             }
 
-            const playersResponse = await fetch(playersUrl, {
-                headers: {
-                    'Authorization': `Bearer ${CFBD_API_KEY}`,
-                    'Accept': 'application/json',
-                },
-            });
+            const espnTeamSlug = matchedEspnTeam.team.slug;
+            console.log(`[API Route] Found ESPN team slug: ${espnTeamSlug} for CFBD team: ${team}`);
+
+            console.log(`[API Route] Fetching roster from ESPN API for team: ${espnTeamSlug}, year ${year}`);
+            // ESPN roster endpoint (example structure, might need adjustment based on exact ESPN API response)
+            // Note: ESPN roster endpoints often don't take a 'year' parameter directly in this path for college football.
+            // They usually represent the current/latest roster. If historical rosters are needed, it's more complex.
+            const playersResponse = await fetch(`http://site.api.espn.com/apis/site/v2/sports/football/college-football/teams/${espnTeamSlug}/roster`);
 
             if (!playersResponse.ok) {
-                console.error(`Error fetching players from CFBD: ${playersResponse.status} ${playersResponse.statusText}`);
+                console.error(`Error fetching players from ESPN: ${playersResponse.status} ${playersResponse.statusText}`);
                 return NextResponse.json({ error: `Failed to fetch players: ${playersResponse.statusText}` }, { status: playersResponse.status });
             }
 
-            const players: CfbdPlayerBasic[] = await playersResponse.json();
-            return NextResponse.json(players);
+            const playersJson = await playersResponse.json();
+            console.log('[API Route] Raw ESPN Roster Data:', JSON.stringify(playersJson, null, 2));
+
+            // Extract players from ESPN roster data
+            // This path might need adjustment based on the exact ESPN roster JSON structure
+            // Common paths: playersJson.sports[0].leagues[0].teams[0].athletes OR playersJson.athletes.items[0].athletes
+            let espnPlayers: any[] = [];
+            if (playersJson.sports?.[0]?.leagues?.[0]?.teams?.[0]?.athletes) {
+                espnPlayers = playersJson.sports[0].leagues[0].teams[0].athletes;
+            } else if (playersJson.athletes?.items?.[0]?.athletes) {
+                // Sometimes the structure is simpler like this
+                espnPlayers = playersJson.athletes.items.flatMap((item: any) => item.athletes);
+            } else if (Array.isArray(playersJson.athletes)) { // Direct athletes array
+                 espnPlayers = playersJson.athletes;
+            } else {
+                console.warn('[API Route] Unexpected ESPN roster data structure. Could not find athletes.');
+            }
+
+
+            const formattedPlayers: ESPNRosterPlayer[] = espnPlayers.map((player: any) => ({
+                id: player.id,
+                firstName: player.firstName,
+                lastName: player.lastName,
+                fullName: player.fullName,
+                position: { displayName: player.position?.displayName || 'N/A' },
+                jersey: player.jersey || 'N/A',
+                team: {
+                    displayName: matchedEspnTeam.team.displayName,
+                    slug: matchedEspnTeam.team.slug
+                }
+            }));
+
+            // Filter by search query if present
+            const filteredPlayers = search
+                ? formattedPlayers.filter(player =>
+                    player.fullName.toLowerCase().includes(search.toLowerCase())
+                )
+                : formattedPlayers;
+
+
+            return NextResponse.json(filteredPlayers);
 
         } catch (error: any) {
             console.error('[API Route] Error fetching players:', error);
@@ -279,7 +355,7 @@ export async function GET(request: NextRequest) {
         }
     }
 
-    // 3. Generate AI Overview (default if no specific target or target is 'ai-overview')
+    // 3. Generate AI Overview (detailed player data from ESPN)
     if (target === 'ai-overview' || (!target && playerId)) { // playerId check for backward compatibility
         if (!playerId) {
             return NextResponse.json({ error: 'Player ID is required for AI overview' }, { status: 400 });
@@ -296,7 +372,7 @@ export async function GET(request: NextRequest) {
             }
 
             const playerJson = await playerResponse.json();
-            const player: ESPNPlayer | undefined = playerJson.athletes?.[0]; // Assuming the structure has an 'athletes' array
+            const player: ESPNPlayerDetail | undefined = playerJson.athletes?.[0]; // Assuming the structure has an 'athletes' array
 
             if (!player) {
                 return NextResponse.json({ error: 'Player not found on ESPN' }, { status: 404 });
