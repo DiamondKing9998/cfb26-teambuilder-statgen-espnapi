@@ -374,7 +374,8 @@ const CollegeFootballApp: React.FC = () => {
 
                 // --- Fetch Teams from CFBD API via Proxy ---
                 const currentYearForTeams = '2024'; // Using a fixed year for teams for now
-                const teamsProxyUrl = `/api/cfbd-proxy?target=teams&year=${currentYearForTeams}`;
+                // MODIFIED: Changed proxy path from /api/cfbd-proxy to /api/ai-overview
+                const teamsProxyUrl = `/api/ai-overview?target=teams&year=${currentYearForTeams}`;
 
                 console.log(`Fetching teams for year: ${currentYearForTeams} via proxy: ${teamsProxyUrl}`);
                 const teamsResponse = await fetch(teamsProxyUrl);
@@ -456,7 +457,8 @@ const CollegeFootballApp: React.FC = () => {
                 queryParams.append('search', appliedFilters.playerName);
             }
 
-            const url = `/api/cfbd-proxy?${queryParams.toString()}`;
+            // MODIFIED: Changed proxy path from /api/cfbd-proxy to /api/ai-overview
+            const url = `/api/ai-overview?${queryParams.toString()}`;
             console.log("Fetching players via proxy URL:", url);
 
             const response = await fetch(url);
