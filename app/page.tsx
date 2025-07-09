@@ -23,7 +23,7 @@ interface CfbdPlayer {
 }
 
 interface CfbdTeam {
-    id: string; // Changed to string to match example and new requirement
+    id: string; // Updated to string to correctly handle IDs like "2000"
     school: string;
     mascot: string | null;
     abbreviation: string | null;
@@ -230,7 +230,7 @@ const FilterSidebar: React.FC<FilterSidebarProps> = ({
                                 {colleges.length > 0 ? (
                                     colleges.map((college) => (
                                         <option
-                                            key={college.id}
+                                            key={college.id} // This key is a number now
                                             value={college.name}
                                         >
                                             {college.name || `Team ID: ${college.id}`}
@@ -272,7 +272,7 @@ const CollegeFootballApp: React.FC = () => {
 
 
     const [isLoadingFilters, setIsLoadingFilters] = useState(true);
-    const [apiColleges, setApiColleges] = useState<{ name: string; id: number }[]>([]);
+    const [apiColleges, setApiColleges] = useState<{ name: string; id: number }[]>([]); // id is number here
     const [collegeNameToIdMap, setCollegeNameToIdMap] = useState<Map<string, number>>(new Map());
 
 
@@ -308,7 +308,7 @@ const CollegeFootballApp: React.FC = () => {
                         const isFbsOrFcs = (classification === 'fbs' || classification === 'fcs');
                         const hasSchool = !!team.school;
 
-                        // New isValidId check: accepts string IDs that can be converted to a number
+                        // Check if ID is a string and can be converted to a valid number
                         const isValidId = typeof team.id === 'string' && !isNaN(Number(team.id));
 
                         if (classification === 'ii' || classification === 'iii') {
@@ -347,7 +347,7 @@ const CollegeFootballApp: React.FC = () => {
                     });
 
                 filteredAndSortedTeams.forEach(team => {
-                    // Convert string ID to number for consistent usage in the dropdown's key prop
+                    // Convert string ID to number for consistent usage in the dropdown's key prop (collegesForDropdown.id)
                     const numericId = Number(team.id);
                     nameToIdMap.set(team.school, numericId);
                     collegesForDropdown.push({ name: team.school, id: numericId });
