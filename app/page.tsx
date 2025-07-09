@@ -245,7 +245,7 @@ const FilterSidebar: React.FC<FilterSidebarProps> = ({
                                             key={college.id} // Changed from college.name to college.id for stability
                                             value={college.name}
                                         >
-                                            {college.name} {/* Fallback display text */}
+                                            {college.name || `Team ID: ${college.id}`} {/* Fallback display text */}
                                         </option>
                                     ))
                                 ) : (
@@ -324,31 +324,37 @@ const CollegeFootballApp: React.FC = () => {
                 const teamsData: CfbdTeam[] = await teamsResponse.json();
                 console.log("Raw teamsData from API (for filters) via proxy:", teamsData);
 
-                const filteredAndSortedTeams = teamsData.filter(
-                    (team) => {
-                        const classification = team.classification?.toUpperCase();
-                        return classification === 'FBS' || classification === 'FCS';
-                    }
-                ).sort((a, b) => {
-                    const classA = a.classification?.toUpperCase();
-                    const classB = b.classification?.toUpperCase();
-
-                    // Prioritize FBS over FCS
-                    if (classA === 'FBS' && classB === 'FCS') return -1;
-                    if (classA === 'FCS' && classB === 'FBS') return 1;
-
-                    // If same classification or other case, sort alphabetically by school name
-                    // SAFELY ACCESS SCHOOL PROPERTY TO AVOID 'undefined.localeCompare' ERROR
-                    const schoolA = a.school || ''; // Default to empty string if null/undefined
-                    const schoolB = b.school || ''; // Default to empty string if null/undefined
-                    return schoolA.localeCompare(schoolB);
-                });
-
                 const nameToIdMap = new Map<string, number>();
-                const collegesForDropdown = filteredAndSortedTeams.map(team => {
-                    nameToIdMap.set(team.school, team.id);
-                    return { name: team.school, id: team.id };
-                });
+                const collegesForDropdown: { name: string; id: number }[] = [];
+
+                // Filter, sort, and then populate the map and dropdown array
+                teamsData
+                    .filter(
+                        (team) => {
+                            const classification = team.classification?.toUpperCase();
+                            return (classification === 'FBS' || classification === 'FCS') && team.school; // Ensure school name exists
+                        }
+                    )
+                    .sort((a, b) => {
+                        const classA = a.classification?.toUpperCase();
+                        const classB = b.classification?.toUpperCase();
+
+                        // Prioritize FBS over FCS
+                        if (classA === 'FBS' && classB === 'FCS') return -1;
+                        if (classA === 'FCS' && classB === 'FBS') return 1;
+
+                        // If same classification or other case, sort alphabetically by school name
+                        const schoolA = a.school || '';
+                        const schoolB = b.school || '';
+                        return schoolA.localeCompare(schoolB);
+                    })
+                    .forEach(team => {
+                        // Only add if school name and ID are present
+                        if (team.school && typeof team.id === 'number') {
+                            nameToIdMap.set(team.school, team.id);
+                            collegesForDropdown.push({ name: team.school, id: team.id });
+                        }
+                    });
 
                 setApiColleges(collegesForDropdown);
                 setCollegeNameToIdMap(nameToIdMap);
@@ -362,7 +368,7 @@ const CollegeFootballApp: React.FC = () => {
         };
 
         fetchFilterOptions();
-    }, []);
+    }, []); // Empty dependency array means this runs once on mount
 
     // 2. Fetch players based on applied filters - NOW USES PROXY WITH 'players' TARGET!
     const fetchPlayers = useCallback(async () => {

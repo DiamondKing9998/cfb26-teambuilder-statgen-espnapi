@@ -85,6 +85,18 @@ interface ESPNTeamArrayItem {
     team: ESPNTeamLookupData;
 }
 
+// NEW: Interface for the formatted team data sent to the frontend
+interface FormattedTeamForFrontend {
+    id: string;
+    collegeDisplayName: string; // <--- This is the new property name
+    mascot: string;
+    conference: string;
+    classification: string;
+    color: string;
+    alternateColor: string;
+    logo: string;
+    darkLogo: string;
+}
 
 const allAbilities = [
     // Quarterbacks
@@ -241,10 +253,10 @@ export async function GET(request: NextRequest) {
             const teamsJson: CFBDTeam[] = await teamsResponse.json();
             console.log('[API Route] Raw CFBD Teams Data:', JSON.stringify(teamsJson, null, 2));
 
-            // Map CFBD team data to a simplified structure
-            const formattedTeams = teamsJson.map(team => ({
+            // Map CFBD team data to a simplified structure using the new property name
+            const formattedTeams: FormattedTeamForFrontend[] = teamsJson.map(team => ({
                 id: team.id.toString(), // Convert number ID to string
-                name: team.school,
+                collegeDisplayName: team.school, // <--- CHANGED: Use collegeDisplayName here
                 mascot: team.mascot,
                 conference: team.conference || 'N/A',
                 // Safely handle potentially null 'classification' before calling toUpperCase()
@@ -321,7 +333,7 @@ export async function GET(request: NextRequest) {
                 // Sometimes the structure is simpler like this
                 espnPlayers = playersJson.athletes.items.flatMap((item: any) => item.athletes);
             } else if (Array.isArray(playersJson.athletes)) { // Direct athletes array
-                 espnPlayers = playersJson.athletes;
+                espnPlayers = playersJson.athletes;
             } else {
                 console.warn('[API Route] Unexpected ESPN roster data structure. Could not find athletes.');
             }
