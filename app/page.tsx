@@ -245,7 +245,7 @@ const FilterSidebar: React.FC<FilterSidebarProps> = ({
                                             key={college.id} // Changed from college.name to college.id for stability
                                             value={college.name}
                                         >
-                                            {college.name || `Team ID: ${college.id}`} {/* Fallback display text */}
+                                            {college.name} {/* Fallback display text */}
                                         </option>
                                     ))
                                 ) : (
