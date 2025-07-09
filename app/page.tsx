@@ -300,6 +300,7 @@ const CollegeFootballApp: React.FC = () => {
 
                 // --- DEBUG STEP 1: Raw FBS/FCS teams before any sorting/mapping ---
                 const rawFbsFcsTeams = teamsData.filter(team => {
+                    // Ensures classification is compared case-insensitively
                     const classification = team.classification?.toLowerCase();
                     return (classification === 'fbs' || classification === 'fcs') && team.school && typeof team.id === 'number';
                 });
@@ -314,12 +315,14 @@ const CollegeFootballApp: React.FC = () => {
                 const filteredAndSortedTeams = teamsData
                     .filter(
                         (team) => {
+                            // Ensures classification is compared case-insensitively
                             const classification = team.classification?.toLowerCase();
                             const isValid = (classification === 'fbs' || classification === 'fcs') && team.school && typeof team.id === 'number';
                             return isValid;
                         }
                     )
                     .sort((a, b) => {
+                        // Ensures classification is sorted case-insensitively
                         const classA = a.classification?.toLowerCase();
                         const classB = b.classification?.toLowerCase();
 
