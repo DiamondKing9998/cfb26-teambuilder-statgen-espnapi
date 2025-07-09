@@ -217,6 +217,7 @@ export async function GET(request: NextRequest) {
             }
 
             const teamsJson = await teamsResponse.json();
+            console.log('[API Route] Raw ESPN Teams Data:', JSON.stringify(teamsJson, null, 2)); // ADDED LINE
             // ESPN API structure has sports -> 0 -> leagues -> 0 -> teams
             const espnTeams: ESPNTeam[] = teamsJson.sports?.[0]?.leagues?.[0]?.teams || [];
 
