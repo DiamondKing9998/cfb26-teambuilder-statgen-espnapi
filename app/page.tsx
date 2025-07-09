@@ -8,7 +8,7 @@ import Link from 'next/link';
 // --- Interfaces for CollegeFootballData.com API ---
 
 interface CfbdPlayer {
-    id: string; // Keep as string for players, as their IDs might vary or come from different endpoints
+    id: string; // Changed from number to string based on sample data
     team: string; // e.g., "Michigan"
     name: string; // Full name, e.g., "Aidan Hutchinson"
     firstName: string; // e.g., "Aidan"
@@ -23,8 +23,8 @@ interface CfbdPlayer {
 }
 
 interface CfbdTeam {
-    id: number; // REVERTED TO NUMBER - This is crucial if CFBD API returns numbers for team IDs
-    school: string; // CFBD uses 'school', not 'collegeDisplayName'
+    id: number;
+    school: string;
     mascot: string | null;
     abbreviation: string | null;
     alt_name1: string | null;
@@ -35,7 +35,7 @@ interface CfbdTeam {
     classification: string | null;
     color: string | null;
     alt_color: string | null;
-    logos: string[] | null; // CFBD provides 'logos' as an array of strings
+    logos: string[] | null;
     twitter: string | null;
     location: {
         venue_id: number | null;
@@ -55,44 +55,56 @@ interface CfbdTeam {
     } | null;
 }
 
-// --- Component Props Interfaces (No changes needed here as they use the CfbdTeam type) ---
+// --- Component Props Interfaces ---
 interface FilterSidebarProps {
-    onApplyFilters: (filters: { college: string }) => void;
+    onApplyFilters: (filters: { college: string; year: string; position: string; playerName: string }) => void;
     colleges: { name: string; id: number }[];
+    years: string[];
+    positions: string[];
     isLoadingFilters: boolean;
     onResetFilters: () => void;
     currentCollege: string;
+    currentYear: string;
+    currentPosition: string;
+    currentSearchName: string;
 }
 
 interface PlayerCardProps {
     player: CfbdPlayer;
-    searchYear: string;
+    searchYear: string; // Added to display the year from the search filter
 }
 
 interface PlayerResultsProps {
-    players: CfbdPlayer[];
+    players: CfbdPlayer[]; // These players will already be sorted by the parent
     isLoadingPlayers: boolean;
     error: string | null;
     currentSearchYear: string;
+    // New props for sorting controls
     sortBy: string;
     setSortBy: React.Dispatch<React.SetStateAction<string>>;
     sortOrder: 'asc' | 'desc';
     setSortOrder: React.Dispatch<React.SetStateAction<'asc' | 'desc'>>;
-    hasSearched: boolean;
+    hasSearched: boolean; // To know if a search has been performed
 }
 
 
 // --- PlayerCard Component (Uses .player-card class from globals.css) ---
 const PlayerCard: React.FC<PlayerCardProps> = ({ player, searchYear }) => {
+    // Fallback if firstName/lastName are null, use 'name' if available, otherwise 'N/A Name'
     const displayName = player.name || `${player.firstName || ''} ${player.lastName || ''}`.trim() || 'N/A Name';
+
+    // Encode the entire player object and the search year for the player details page
+    // Using encodeURIComponent on JSON.stringify is robust for complex objects
     const encodedPlayer = encodeURIComponent(JSON.stringify(player));
 
     return (
+        // Link wraps the div to make the entire card clickable
         <Link href={`/player/${player.id}?player=${encodedPlayer}&year=${searchYear}`}>
+            {/* The div inside the Link gets the styling from globals.css */}
             <div className="player-card">
                 <h4>{displayName}</h4>
                 <p>{player.team || 'N/A Team'} | {player.position || 'N/A Pos'} | {searchYear || 'N/A Season'}</p>
-                {player.jersey !== null && <p>Jersey: #{player.jersey}</p>}
+                {player.jersey !== null && <p>Jersey: #{player.jersey}</p>} {/* Only display if not null */}
                 {player.height !== null && player.weight !== null && (
                     <p>Height: {Math.floor(player.height / 12)}'{player.height % 12}" | Weight: {player.weight} lbs</p>
                 )}
@@ -114,6 +126,7 @@ const PlayerResults: React.FC<PlayerResultsProps> = ({
     setSortOrder,
     hasSearched
 }) => {
+    // If no search has been performed yet, show the initial message
     if (!hasSearched && !isLoadingPlayers && !error && players.length === 0) {
         return (
             <main className="player-results">
@@ -145,6 +158,7 @@ const PlayerResults: React.FC<PlayerResultsProps> = ({
         <main className="player-results">
             <h2 className="text-[var(--color-primary)]">College Football Player Profiles</h2>
 
+            {/* Sorting Options UI - only show if players are found */}
             {players.length > 0 && (
                 <div className="flex justify-end items-center mb-4 gap-2">
                     <label htmlFor="sortBy" className="text-sm font-semibold text-[var(--color-text-default)]">Sort By:</label>
@@ -173,7 +187,7 @@ const PlayerResults: React.FC<PlayerResultsProps> = ({
                 </div>
             )}
 
-            <div className="player-grid">
+            <div className="player-grid"> {/* Uses the .player-grid class */}
                 {players.length > 0 ? (
                     players.map((player) => (
                         <PlayerCard key={player.id} player={player} searchYear={currentSearchYear} />
@@ -190,36 +204,63 @@ const PlayerResults: React.FC<PlayerResultsProps> = ({
 const FilterSidebar: React.FC<FilterSidebarProps> = ({
     onApplyFilters,
     colleges,
+    years, // Still passed but not used in rendering
+    positions, // Still passed but not used in rendering
     isLoadingFilters,
     onResetFilters,
     currentCollege,
+    currentYear, // Still passed but not used in rendering
+    currentPosition, // Still passed but not used in rendering
+    currentSearchName,
 }) => {
     const [collegeValue, setCollegeValue] = useState<string>(currentCollege);
+    // Removed yearValue and setYearValue as they are no longer rendered
+    const [positionValue, setPositionValue] = useState<string>(currentPosition); // Keeping for now, will remove in next step
+    const [playerNameValue, setPlayerNameValue] = useState<string>(currentSearchName);
 
+    // Update internal state when props from parent (CollegeFootballApp) change
     useEffect(() => {
         setCollegeValue(currentCollege);
     }, [currentCollege]);
+
+    // Removed useEffect for yearValue
+    useEffect(() => {
+        setPositionValue(currentPosition);
+    }, [currentPosition]);
+
+    useEffect(() => {
+        setPlayerNameValue(currentSearchName);
+    }, [currentSearchName]);
+
 
     const handleSubmit = (event: React.FormEvent) => {
         event.preventDefault();
         onApplyFilters({
             college: collegeValue,
+            year: '', // Hardcode empty as it's removed from UI
+            position: '', // Hardcode empty as it's removed from UI
+            playerName: playerNameValue.trim(),
         });
     };
 
     const handleReset = () => {
         setCollegeValue('');
-        onResetFilters();
+        // setYearValue(''); // No longer needed
+        setPositionValue(''); // No longer needed
+        setPlayerNameValue('');
+        onResetFilters(); // Trigger reset in parent
     };
 
     return (
-        <aside className="filter-sidebar">
+        <aside className="filter-sidebar"> {/* Uses the .filter-sidebar class */}
             <h2>College Football Player Filters</h2>
-            <form onSubmit={handleSubmit} className="filter-form">
+            <form onSubmit={handleSubmit} className="filter-form"> {/* Uses the .filter-form class */}
                 {isLoadingFilters ? (
                     <div className="loading-message">Loading filters...</div>
                 ) : (
                     <>
+                        {/* Removed Season (Year) filter group */}
+
                         <div className="filter-group">
                             <h3>College Team</h3>
                             <select
@@ -229,12 +270,7 @@ const FilterSidebar: React.FC<FilterSidebarProps> = ({
                                 <option value="">All Colleges</option>
                                 {colleges.length > 0 ? (
                                     colleges.map((college) => (
-                                        <option
-                                            key={college.id} // This key is correctly a number
-                                            value={college.name}
-                                        >
-                                            {college.name || `Team ID: ${college.id}`}
-                                        </option>
+                                        <option key={college.name} value={college.name}>{college.name}</option>
                                     ))
                                 ) : (
                                     <option value="" disabled>No teams loaded</option>
@@ -242,7 +278,19 @@ const FilterSidebar: React.FC<FilterSidebarProps> = ({
                             </select>
                         </div>
 
-                        <div className="button-group">
+                        {/* Removed Position filter group */}
+
+                        <div className="filter-group">
+                            <h3>Player Name</h3>
+                            <input
+                                type="text"
+                                placeholder="First or Last Name"
+                                value={playerNameValue}
+                                onChange={(e) => setPlayerNameValue(e.target.value)}
+                            />
+                        </div>
+
+                        <div className="button-group"> {/* Uses the .button-group class */}
                             <button type="submit" className="submit-button">Search Players</button>
                             <button type="button" className="reset-button" onClick={handleReset}>Reset Filters</button>
                         </div>
@@ -258,21 +306,28 @@ const FilterSidebar: React.FC<FilterSidebarProps> = ({
 const CollegeFootballApp: React.FC = () => {
     const [appliedFilters, setAppliedFilters] = useState({
         college: '',
-        year: '2025',
+        year: '', // Keeping here for interface consistency, but will always be empty from FilterSidebar
+        position: '', // Keeping here for interface consistency, but will always be empty from FilterSidebar
+        playerName: '',
     });
 
     const [players, setPlayers] = useState<CfbdPlayer[]>([]);
     const [isLoadingPlayers, setIsLoadingPlayers] = useState(false);
     const [playerError, setPlayerError] = useState<string | null>(null);
 
-    const [sortBy, setSortBy] = useState<string>('lastName');
-    const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+    // New state for sorting
+    const [sortBy, setSortBy] = useState<string>('lastName'); // Default sort by last name
+    const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc'); // Default ascending
 
+    // State to track if a search has been performed
     const [hasSearched, setHasSearched] = useState(false);
 
 
     const [isLoadingFilters, setIsLoadingFilters] = useState(true);
     const [apiColleges, setApiColleges] = useState<{ name: string; id: number }[]>([]);
+    const [apiYears, setApiYears] = useState<string[]>([]); // Still fetched but not used for filtering
+    const [apiPositions, setApiPositions] = useState<string[]>([]); // Still fetched but not used for filtering
+
     const [collegeNameToIdMap, setCollegeNameToIdMap] = useState<Map<string, number>>(new Map());
 
 
@@ -283,82 +338,60 @@ const CollegeFootballApp: React.FC = () => {
             setPlayerError(null);
 
             try {
-                const currentYearForTeams = '2024'; // Keeping it 2024 as it has more stable data
-                const teamsProxyUrl = `/api/ai-overview?target=teams&year=${currentYearForTeams}`;
+                // --- Generate Years 1940-2025 ---
+                const startYear = 1940;
+                const endYear = new Date().getFullYear(); // Up to current year
+                const generatedYears: string[] = [];
+                for (let year = endYear; year >= startYear; year--) {
+                    generatedYears.push(year.toString());
+                }
+                setApiYears(generatedYears); // Still store, but year filter will be hardcoded
 
-                console.log(`[UI - Fetch Filter Options] Fetching teams for year: ${currentYearForTeams} via proxy: ${teamsProxyUrl}`);
+                // --- Fetch Teams from CFBD API via Proxy ---
+                const currentYearForTeams = '2024'; // Using a fixed year for teams for now
+                const teamsProxyUrl = `/api/cfbd-proxy?target=teams&year=${currentYearForTeams}`;
+
+                console.log(`Fetching teams for year: ${currentYearForTeams} via proxy: ${teamsProxyUrl}`);
                 const teamsResponse = await fetch(teamsProxyUrl);
 
                 if (!teamsResponse.ok) {
                     const errorBody = await teamsResponse.text();
-                    console.error(`[UI - Fetch Filter Options] Error from proxy when fetching teams: ${teamsResponse.status} ${teamsResponse.statusText}. Details:`, errorBody);
+                    console.error(`Error from proxy when fetching teams: ${teamsResponse.status} ${teamsResponse.statusText}. Details:`, errorBody);
                     throw new Error(`Proxy error fetching teams: ${teamsResponse.status} ${teamsResponse.statusText}. Details: ${errorBody}`);
                 }
 
                 const teamsData: CfbdTeam[] = await teamsResponse.json();
-                console.log("[UI - Fetch Filter Options] Raw teamsData from API (for filters) via proxy:", teamsData);
+                console.log("Raw teamsData from API (for filters) via proxy:", teamsData);
+
+                const filteredTeams = teamsData.filter(
+                    (team) => {
+                        const classification = team.classification?.toUpperCase();
+                        const isFbsFcs = classification === 'FBS' || classification === 'FCS';
+                        return isFbsFcs;
+                    }
+                ).sort((a, b) => a.school.localeCompare(b.school));
 
                 const nameToIdMap = new Map<string, number>();
-                const collegesForDropdown: { name: string; id: number }[] = [];
-
-                // Filter for FBS/FCS classifications only, and valid data
-                const filteredAndSortedTeams = teamsData
-                    .filter(team => {
-                        const classification = team.classification?.toLowerCase();
-                        const isFbsOrFcs = (classification === 'fbs' || classification === 'fcs');
-                        const hasSchool = !!team.school;
-
-                        // Check if ID is a number
-                        const isValidId = typeof team.id === 'number' && !isNaN(team.id);
-
-                        if (classification === 'ii' || classification === 'iii') {
-                            console.log(`[UI - DEBUG Filter Out] Team ${team.school || team.id || 'Unknown'} filtered out: Classification is II/III (${team.classification}).`);
-                        }
-                        if (!hasSchool) {
-                            console.log(`[UI - DEBUG Filter Out] Team ${team.school || team.id || 'Unknown'} filtered out: School name is missing/empty.`);
-                        }
-                        if (!isValidId) {
-                            console.log(`[UI - DEBUG Filter Out] Team ${team.school || team.id || 'Unknown'} filtered out: ID is not a valid number (${team.id}, type: ${typeof team.id}).`);
-                        }
-
-                        return isFbsOrFcs && hasSchool && isValidId;
-                    })
-                    .sort((a, b) => {
-                        const classA = a.classification?.toLowerCase();
-                        const classB = b.classification?.toLowerCase();
-
-                        // Custom sorting order: FBS comes before FCS
-                        const classificationOrder: { [key: string]: number } = {
-                            'fbs': 1,
-                            'fcs': 2,
-                        };
-
-                        const orderA = classificationOrder[classA || ''] || 99;
-                        const orderB = classificationOrder[classB || ''] || 99;
-
-                        if (orderA !== orderB) {
-                            return orderA - orderB;
-                        }
-
-                        // Within the same classification, sort alphabetically by school name
-                        const schoolA = a.school || '';
-                        const schoolB = b.school || '';
-                        return schoolA.localeCompare(schoolB);
-                    });
-
-                filteredAndSortedTeams.forEach(team => {
-                    // ID is already a number based on CfbdTeam.id: number
+                const collegesForDropdown = filteredTeams.map(team => {
                     nameToIdMap.set(team.school, team.id);
-                    collegesForDropdown.push({ name: team.school, id: team.id });
+                    return { name: team.school, id: team.id };
                 });
 
                 setApiColleges(collegesForDropdown);
                 setCollegeNameToIdMap(nameToIdMap);
 
-                console.log("[UI - DEBUG] Final sorted FBS/FCS colleges for dropdown:", collegesForDropdown);
+
+                // --- Fetch Positions from a known list ---
+                const commonPositions = [
+                    'QB', 'K', 'P', 'LS', 'RB', 'FB', 'WR', 'TE', 'C', 'OG', 'OT', 'OL',
+                    'DE', 'DT', 'DL', 'LB', 'ILB', 'OLB', 'CB', 'S', 'DB', 'FS', 'SS',
+                    'ATH', 'PK', 'ST'
+                ].sort();
+
+                setApiPositions(commonPositions); // Still store, but position filter will be hardcoded
 
             } catch (error: any) {
-                console.error('[UI - Fetch Filter Options] Error in fetchFilterOptions:', error);
+                console.error('Error in fetchFilterOptions:', error);
                 setPlayerError(`Failed to load initial filter options: ${error.message || 'Unknown error'}.`);
             } finally {
                 setIsLoadingFilters(false);
@@ -372,11 +405,10 @@ const CollegeFootballApp: React.FC = () => {
     const fetchPlayers = useCallback(async () => {
         setIsLoadingPlayers(true);
         setPlayerError(null);
-        setPlayers([]);
+        setPlayers([]); // Clear previous results immediately
 
-        const hasCollege = appliedFilters.college !== '';
-
-        if (!hasCollege && !hasSearched) {
+        const hasActiveFilters = appliedFilters.college !== '' || appliedFilters.playerName !== ''; // Check only college and player name
+        if (!hasActiveFilters && !hasSearched) { // Only return if no filters are set and no search has been initiated
             setIsLoadingPlayers(false);
             return;
         }
@@ -385,64 +417,70 @@ const CollegeFootballApp: React.FC = () => {
             const queryParams = new URLSearchParams();
             queryParams.append('target', 'players');
 
-            const seasonToQuery = '2025';
+            // Always query for a default year, or the one from appliedFilters if it somehow gets set externally
+            const seasonToQuery = appliedFilters.year || (apiYears.length > 0 ? apiYears[0] : '2024');
             queryParams.append('year', seasonToQuery);
 
             if (appliedFilters.college) {
                 queryParams.append('team', appliedFilters.college);
             }
+            // Removed appliedFilters.position check
+            if (appliedFilters.playerName) {
+                queryParams.append('search', appliedFilters.playerName);
+            }
 
-            const url = `/api/ai-overview?${queryParams.toString()}`;
-            console.log("[UI - Fetch Players] Fetching players via proxy URL:", url);
+            const url = `/api/cfbd-proxy?${queryParams.toString()}`;
+            console.log("Fetching players via proxy URL:", url);
 
             const response = await fetch(url);
 
             if (!response.ok) {
                 const errorBody = await response.text();
-                console.error(`[UI - Fetch Players] Error from proxy: ${response.status} ${response.statusText}. Details:`, errorBody);
+                console.error(`Error from proxy: ${response.status} ${response.statusText}. Details:`, errorBody);
                 throw new Error(`Proxy error: ${response.status} ${response.statusText}. Details: ${errorBody}`);
             }
 
             const data: CfbdPlayer[] = await response.json();
 
             setPlayers(data || []);
-            console.log("[UI - Fetch Players] Fetched players via proxy:", data);
+            console.log("Fetched players via proxy:", data);
 
         } catch (error: any) {
-            console.error('[UI - Fetch Players] Error fetching players:', error);
+            console.error('Error fetching players:', error);
             setPlayerError(error.message || 'Failed to fetch players. Check network or server logs.');
             setPlayers([]);
         } finally {
             setIsLoadingPlayers(false);
         }
-    }, [appliedFilters, hasSearched]);
-
+    }, [appliedFilters, apiYears, hasSearched]); // Added hasSearched to dependencies
 
     // Trigger player fetch when filters change or initially if a default search should occur
     useEffect(() => {
-        const shouldFetch = hasSearched || (appliedFilters.college !== '');
-
-        if (shouldFetch) {
+        if (hasSearched || appliedFilters.college !== '' || appliedFilters.playerName !== '') { // Only trigger if search initiated or relevant filters are set
             fetchPlayers();
         }
-    }, [fetchPlayers, appliedFilters, hasSearched]);
+    }, [fetchPlayers, appliedFilters.college, appliedFilters.playerName, hasSearched]);
 
 
-    const handleApplyFilters = useCallback((filters: { college: string }) => {
+    const handleApplyFilters = useCallback((filters: { college: string; year: string; position: string; playerName: string }) => {
+        // Only update college and playerName in appliedFilters
         setAppliedFilters(prevFilters => ({
             ...prevFilters,
             college: filters.college,
+            playerName: filters.playerName,
+            year: '', // Ensure year is reset to empty string in applied filters if it's no longer selectable
+            position: '', // Ensure position is reset to empty string in applied filters if it's no longer selectable
         }));
-        setHasSearched(true);
+        setHasSearched(true); // Mark that a search has been initiated
     }, []);
 
     const handleResetAllFilters = useCallback(() => {
-        setAppliedFilters({ college: '', year: '2025' });
+        setAppliedFilters({ college: '', year: '', position: '', playerName: '' });
         setPlayers([]);
         setPlayerError(null);
-        setSortBy('lastName');
-        setSortOrder('asc');
-        setHasSearched(false);
+        setSortBy('lastName'); // Reset sort options
+        setSortOrder('asc'); // Reset sort options
+        setHasSearched(false); // Reset search state
     }, []);
 
     // Sorting Logic Function
@@ -454,6 +492,7 @@ const CollegeFootballApp: React.FC = () => {
         return [...playersToSort].sort((a, b) => {
             let valA: any, valB: any;
 
+            // Handle potential null values for sorting keys
             const getSortValue = (player: CfbdPlayer, key: string) => {
                 switch (key) {
                     case 'lastName':
@@ -463,6 +502,7 @@ const CollegeFootballApp: React.FC = () => {
                     case 'position':
                         return player.position || '';
                     case 'jersey':
+                        // Use 0 for null/invalid jersey numbers to sort them consistently (e.g., at the beginning/end)
                         return player.jersey !== null ? parseInt(player.jersey.toString(), 10) : 0;
                     default:
                         return '';
@@ -475,36 +515,43 @@ const CollegeFootballApp: React.FC = () => {
             if (typeof valA === 'string' && typeof valB === 'string') {
                 const comparison = valA.localeCompare(valB);
                 return sortOrder === 'asc' ? comparison : -comparison;
-            } else {
+            } else { // Assuming numerical for jersey
                 const comparison = valA - valB;
                 return sortOrder === 'asc' ? comparison : -comparison;
             }
         });
-    }, [sortBy, sortOrder]);
+    }, [sortBy, sortOrder]); // Re-memoize if sort criteria change
 
+    // Apply sorting to the players whenever the players array or sort criteria change
     const sortedPlayers = getSortedPlayers(players);
 
     return (
-        <div className="App">
-            <header>
+        <div className="App"> {/* Uses the .App class from globals.css */}
+            <header> {/* Uses the header class from globals.css */}
                 <h1>CFB26 Teambuilder</h1>
                 <p>College Football Player Search (CFBD API)</p>
-                <p>Find college players by team for the 2025 season.</p>
+                <p>Find college players by team or name.</p>
             </header>
 
-            <div className="main-container">
+            <div className="main-container"> {/* Uses the .main-container class from globals.css */}
                 <FilterSidebar
                     onApplyFilters={handleApplyFilters}
                     colleges={apiColleges}
+                    years={apiYears} // Still passed, but not used in FilterSidebar for rendering
+                    positions={apiPositions} // Still passed, but not used in FilterSidebar for rendering
                     isLoadingFilters={isLoadingFilters}
                     onResetFilters={handleResetAllFilters}
                     currentCollege={appliedFilters.college}
+                    currentYear={appliedFilters.year} // Still passed, but not used in FilterSidebar for rendering
+                    currentPosition={appliedFilters.position} // Still passed, but not used in FilterSidebar for rendering
+                    currentSearchName={appliedFilters.playerName}
                 />
                 <PlayerResults
-                    players={sortedPlayers}
+                    players={sortedPlayers} // Pass the already sorted players
                     isLoadingPlayers={isLoadingPlayers}
                     error={playerError}
-                    currentSearchYear={appliedFilters.year}
+                    currentSearchYear={appliedFilters.year} // Year might be empty string now, will default to 2024 in PlayerCard via 'N/A Season'
+                    // Pass sorting state and setters to PlayerResults
                     sortBy={sortBy}
                     setSortBy={setSortBy}
                     sortOrder={sortOrder}
@@ -513,7 +560,7 @@ const CollegeFootballApp: React.FC = () => {
                 />
             </div>
 
-            <footer>
+            <footer> {/* Uses the footer class from globals.css */}
                 <p>&copy; 2025 College Football Player Database POC</p>
             </footer>
         </div>
