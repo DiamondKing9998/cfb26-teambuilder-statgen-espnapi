@@ -240,7 +240,13 @@ const FilterSidebar: React.FC<FilterSidebarProps> = ({
                                 <option value="">All Colleges</option>
                                 {colleges.length > 0 ? (
                                     colleges.map((college) => (
-                                        <option key={college.name} value={college.name}>{college.name}</option>
+                                        // MODIFIED: Use college.id as key, and provide fallback text
+                                        <option
+                                            key={college.id} // Changed from college.name to college.id for stability
+                                            value={college.name}
+                                        >
+                                            {college.name || `Team ID: ${college.id}`} {/* Fallback display text */}
+                                        </option>
                                     ))
                                 ) : (
                                     <option value="" disabled>No teams loaded</option>
@@ -386,7 +392,7 @@ const CollegeFootballApp: React.FC = () => {
             }
             // REMOVED player name search parameter
             // if (appliedFilters.playerName) {
-            //     queryParams.append('search', appliedFilters.playerName);
+            //      queryParams.append('search', appliedFilters.playerName);
             // }
 
             const url = `/api/ai-overview?${queryParams.toString()}`;
