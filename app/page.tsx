@@ -339,7 +339,7 @@ const CollegeFootballApp: React.FC = () => {
                 // and year filter is removed.
 
                 // --- Fetch Teams from CFBD API via Proxy ---
-                const currentYearForTeams = '2024'; // Using a fixed year for teams for now
+                const currentYearForTeams = '2025'; // Using a fixed year for teams for now
                 const teamsProxyUrl = `/api/ai-overview?target=teams&year=${currentYearForTeams}`;
 
                 console.log(`Fetching teams for year: ${currentYearForTeams} via proxy: ${teamsProxyUrl}`);
