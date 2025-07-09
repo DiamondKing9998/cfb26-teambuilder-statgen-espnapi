@@ -298,50 +298,38 @@ const CollegeFootballApp: React.FC = () => {
                 const teamsData: CfbdTeam[] = await teamsResponse.json();
                 console.log("[UI - Fetch Filter Options] Raw teamsData from API (for filters) via proxy:", teamsData);
 
-                // --- DEBUG STEP 1: All valid teams before any sorting/mapping ---
-                const validTeams = teamsData.filter(team => {
-                    const classification = team.classification?.toLowerCase();
-                    // NEW: Accept 'fbs', 'fcs', 'ii', or 'iii'
-                    const isValidClassification = (
-                        classification === 'fbs' ||
-                        classification === 'fcs' ||
-                        classification === 'ii' || // Added this
-                        classification === 'iii'    // Added this
-                    );
-                    const hasSchool = !!team.school; // Check if school is truthy (not null, undefined, or empty string)
-                    const isValidId = typeof team.id === 'number';
-
-                    if (!isValidClassification) {
-                        console.log(`[UI - DEBUG Filter Out] Team ${team.school || team.id || 'Unknown'} filtered out: Classification is not FBS/FCS/II/III (${team.classification})`);
-                    }
-                    if (!hasSchool) {
-                        console.log(`[UI - DEBUG Filter Out] Team ${team.school || team.id || 'Unknown'} filtered out: School name is missing/empty.`);
-                    }
-                    if (!isValidId) {
-                        console.log(`[UI - DEBUG Filter Out] Team ${team.school || team.id || 'Unknown'} filtered out: ID is not a number (${team.id}, type: ${typeof team.id}).`);
-                    }
-
-                    return isValidClassification && hasSchool && isValidId;
-                });
-                console.log("[UI - DEBUG] Raw filtered valid teams (before custom sort):", validTeams.map(t => ({ school: t.school, classification: t.classification })));
-                // --- END DEBUG STEP 1 ---
-
-
                 const nameToIdMap = new Map<string, number>();
                 const collegesForDropdown: { name: string; id: number }[] = [];
 
-                // Filter and sort the valid teams
-                const filteredAndSortedTeams = validTeams
+                // Filter for FBS/FCS classifications only, and valid data
+                const filteredAndSortedTeams = teamsData
+                    .filter(team => {
+                        const classification = team.classification?.toLowerCase();
+                        const isFbsOrFcs = (classification === 'fbs' || classification === 'fcs');
+                        const hasSchool = !!team.school;
+                        const isValidId = typeof team.id === 'number';
+
+                        if (classification === 'ii' || classification === 'iii') {
+                            console.log(`[UI - DEBUG Filter Out] Team ${team.school || team.id || 'Unknown'} filtered out: Classification is II/III (${team.classification}).`);
+                        }
+                        if (!hasSchool) {
+                            console.log(`[UI - DEBUG Filter Out] Team ${team.school || team.id || 'Unknown'} filtered out: School name is missing/empty.`);
+                        }
+                        if (!isValidId) {
+                            console.log(`[UI - DEBUG Filter Out] Team ${team.school || team.id || 'Unknown'} filtered out: ID is not a number (${team.id}, type: ${typeof team.id}).`);
+                        }
+
+                        return isFbsOrFcs && hasSchool && isValidId;
+                    })
                     .sort((a, b) => {
                         const classA = a.classification?.toLowerCase();
                         const classB = b.classification?.toLowerCase();
 
-                        // Custom sorting order: FBS > FCS > II > III
+                        // Custom sorting order: FBS comes before FCS
                         const classificationOrder: { [key: string]: number } = {
                             'fbs': 1,
                             'fcs': 2,
-                            'ii': 3,
-                            'iii': 4,
+                            // No 'ii' or 'iii' here as they are filtered out
                         };
 
                         const orderA = classificationOrder[classA || ''] || 99; // Default to high number for unknown
@@ -358,6 +346,7 @@ const CollegeFootballApp: React.FC = () => {
                     });
 
                 filteredAndSortedTeams.forEach(team => {
+                    // The ID matters for the key prop in React and potentially for fetching player data if the backend needs team ID
                     nameToIdMap.set(team.school, team.id);
                     collegesForDropdown.push({ name: team.school, id: team.id });
                 });
@@ -365,7 +354,7 @@ const CollegeFootballApp: React.FC = () => {
                 setApiColleges(collegesForDropdown);
                 setCollegeNameToIdMap(nameToIdMap);
 
-                console.log("[UI - DEBUG] Final sorted colleges for dropdown (FBS/FCS/II/III):", collegesForDropdown);
+                console.log("[UI - DEBUG] Final sorted FBS/FCS colleges for dropdown:", collegesForDropdown);
 
             } catch (error: any) {
                 console.error('[UI - Fetch Filter Options] Error in fetchFilterOptions:', error);
