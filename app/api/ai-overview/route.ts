@@ -48,9 +48,9 @@ interface CFBDTeam {
     mascot: string;
     abbreviation: string;
     conference: string;
-    classification: string; // 'fbs' or 'fcs'
-    color: string;
-    alt_color: string;
+    classification: string | null; // 'fbs' or 'fcs' - Made nullable
+    color: string | null; // Made nullable
+    alt_color: string | null; // Made nullable
     logos: string[]; // URLs for logos
     // Add other fields as needed from CFBD API for basic team list
 }
@@ -247,7 +247,8 @@ export async function GET(request: NextRequest) {
                 name: team.school,
                 mascot: team.mascot,
                 conference: team.conference || 'N/A',
-                classification: team.classification.toUpperCase(), // 'fbs' -> 'FBS'
+                // Safely handle potentially null 'classification' before calling toUpperCase()
+                classification: team.classification ? team.classification.toUpperCase() : 'N/A',
                 color: team.color || '#000000',
                 alternateColor: team.alt_color || '#FFFFFF',
                 logo: team.logos?.[0] || '', // Primary logo
