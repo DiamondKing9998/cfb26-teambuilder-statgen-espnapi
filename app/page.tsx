@@ -23,7 +23,7 @@ interface CfbdPlayer {
 }
 
 interface CfbdTeam {
-    id: number;
+    id: string; // Changed to string to match example and new requirement
     school: string;
     mascot: string | null;
     abbreviation: string | null;
@@ -307,7 +307,9 @@ const CollegeFootballApp: React.FC = () => {
                         const classification = team.classification?.toLowerCase();
                         const isFbsOrFcs = (classification === 'fbs' || classification === 'fcs');
                         const hasSchool = !!team.school;
-                        const isValidId = typeof team.id === 'number';
+
+                        // New isValidId check: accepts string IDs that can be converted to a number
+                        const isValidId = typeof team.id === 'string' && !isNaN(Number(team.id));
 
                         if (classification === 'ii' || classification === 'iii') {
                             console.log(`[UI - DEBUG Filter Out] Team ${team.school || team.id || 'Unknown'} filtered out: Classification is II/III (${team.classification}).`);
@@ -316,7 +318,7 @@ const CollegeFootballApp: React.FC = () => {
                             console.log(`[UI - DEBUG Filter Out] Team ${team.school || team.id || 'Unknown'} filtered out: School name is missing/empty.`);
                         }
                         if (!isValidId) {
-                            console.log(`[UI - DEBUG Filter Out] Team ${team.school || team.id || 'Unknown'} filtered out: ID is not a number (${team.id}, type: ${typeof team.id}).`);
+                            console.log(`[UI - DEBUG Filter Out] Team ${team.school || team.id || 'Unknown'} filtered out: ID is not a valid numeric string (${team.id}, type: ${typeof team.id}).`);
                         }
 
                         return isFbsOrFcs && hasSchool && isValidId;
@@ -329,10 +331,9 @@ const CollegeFootballApp: React.FC = () => {
                         const classificationOrder: { [key: string]: number } = {
                             'fbs': 1,
                             'fcs': 2,
-                            // No 'ii' or 'iii' here as they are filtered out
                         };
 
-                        const orderA = classificationOrder[classA || ''] || 99; // Default to high number for unknown
+                        const orderA = classificationOrder[classA || ''] || 99;
                         const orderB = classificationOrder[classB || ''] || 99;
 
                         if (orderA !== orderB) {
@@ -346,9 +347,10 @@ const CollegeFootballApp: React.FC = () => {
                     });
 
                 filteredAndSortedTeams.forEach(team => {
-                    // The ID matters for the key prop in React and potentially for fetching player data if the backend needs team ID
-                    nameToIdMap.set(team.school, team.id);
-                    collegesForDropdown.push({ name: team.school, id: team.id });
+                    // Convert string ID to number for consistent usage in the dropdown's key prop
+                    const numericId = Number(team.id);
+                    nameToIdMap.set(team.school, numericId);
+                    collegesForDropdown.push({ name: team.school, id: numericId });
                 });
 
                 setApiColleges(collegesForDropdown);
