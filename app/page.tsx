@@ -367,7 +367,7 @@ const CollegeFootballApp: React.FC = () => {
 
                 // --- Fetch Teams from CFBD API via Proxy ---
                 // *** UPDATED YEAR TO 2025 AS REQUESTED ***
-                const currentYearForTeams = '2025'; 
+                const currentYearForTeams = '2024'; 
                 const teamsProxyUrl = `/api/main-api?target=teams&year=${currentYearForTeams}`;
 
                 console.log(`Fetching teams for year: ${currentYearForTeams} via proxy: ${teamsProxyUrl}`);
