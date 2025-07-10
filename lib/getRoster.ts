@@ -70,6 +70,17 @@ export async function getRoster(year: string, teamName?: string, playerNameSearc
             // Filter out players where ID is negative OR where first/last name is explicitly empty
             return playerIdAsNumber >= 0 && (player.first_name !== '' && player.last_name !== '');
         });
+        
+        // --- ADD THIS NEW DEBUG LOG HERE ---
+    console.log(`[DEBUG getRoster] Filtered players (first 5, AFTER filter, check names):`,
+            filteredRawPlayers.slice(0, 5).map(p => ({
+            id: p.id,
+            first_name: p.first_name,
+            last_name: p.last_name,
+            team: p.team
+            }))
+        );
+        // --- END NEW DEBUG LOG ---
 
         let formattedPlayers: CfbdPlayer[] = filteredRawPlayers.map(player => ({
             id: player.id.toString(),
