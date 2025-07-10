@@ -331,7 +331,7 @@ const CollegeFootballApp: React.FC = () => {
     const [collegeNameToIdMap, setCollegeNameToIdMap] = useState<Map<string, number>>(new Map());
 
 
-    // 1. Fetch data for filter dropdowns (runs once on mount) - NOW USES PROXY!
+    // 1. Fetch data for filter dropdowns (runs once on mount) - NOW USES CORRECT PROXY PATH!
     useEffect(() => {
         const fetchFilterOptions = async () => {
             setIsLoadingFilters(true);
@@ -363,16 +363,21 @@ const CollegeFootballApp: React.FC = () => {
                 const teamsData: CfbdTeam[] = await teamsResponse.json();
                 console.log("Raw teamsData from API (for filters) via proxy:", teamsData);
 
-                const filteredTeams = teamsData.filter(
-                    (team) => {
-                        const classification = team.classification?.toUpperCase();
-                        const isFbsFcs = classification === 'FBS' || classification === 'FCS';
-                        return isFbsFcs;
-                    }
-                ).sort((a, b) => a.school.localeCompare(b.school));
+                // --- MODIFICATION START ---
+                // Separate FBS and FCS teams, then sort each group, then concatenate
+                const fbsTeams = teamsData.filter(team => team.classification?.toUpperCase() === 'FBS');
+                const fcsTeams = teamsData.filter(team => team.classification?.toUpperCase() === 'FCS');
+
+                fbsTeams.sort((a, b) => a.school.localeCompare(b.school));
+                fcsTeams.sort((a, b) => a.school.localeCompare(b.school));
+
+                // Concatenate FBS first, then FCS
+                const sortedAndFilteredTeams = [...fbsTeams, ...fcsTeams];
+                // --- MODIFICATION END ---
+
 
                 const nameToIdMap = new Map<string, number>();
-                const collegesForDropdown = filteredTeams.map(team => {
+                const collegesForDropdown = sortedAndFilteredTeams.map(team => { // Use sortedAndFilteredTeams here
                     nameToIdMap.set(team.school, team.id);
                     return { name: team.school, id: team.id };
                 });
