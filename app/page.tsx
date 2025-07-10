@@ -439,7 +439,7 @@ const CollegeFootballApp: React.FC = () => {
             queryParams.append('target', 'players');
 
             // Always query for a default year, or the one from appliedFilters if it somehow gets set externally
-            const seasonToQuery = appliedFilters.year || (apiYears.length > 0 ? apiYears[0] : '2025'); // Use 2025 as default
+            const seasonToQuery = appliedFilters.year || (apiYears.length > 0 ? apiYears[0] : '2024'); // Use 2025 as default /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
             queryParams.append('year', seasonToQuery);
 
             if (appliedFilters.college) {
