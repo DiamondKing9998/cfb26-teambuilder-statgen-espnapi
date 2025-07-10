@@ -1,32 +1,27 @@
-// src/app/page.tsx
-
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 
-// --- Interfaces for CollegeFootballData.com API ---
-interface CfbdPlayer { // This now maps to ESPNRosterPlayer from your ai-overview/route.ts
-    id: string;
-    firstName: string;
-    lastName: string;
-    fullName: string; // The combined name
-    position: { displayName: string };
-    jersey: string; // ESPN returns string for jersey
-    team: { displayName: string; slug: string }; // Basic team info from ESPN
-    // These fields are from CFBD and might not be present in ESPN roster data, consider if you need them.
-    // They will likely be 'undefined' or 'null' if not explicitly mapped in your /api/main-api route for 'players' target.
-    weight: number | null;
-    height: number | null;
-    hometown: string | null; // This would need to be constructed from ESPN's city/state
-    teamColor: string | null;
-    teamColorSecondary: string | null;
+// --- Interfaces for CollegeFootballData.com API (REVISED for CFBD Player API) ---
+// This interface now reflects the data structure we expect from CFBD's /players endpoint
+// after it's been mapped in your /api/main-api/route.ts
+interface CfbdPlayer {
+    id: string; // athlete_id from CFBD, converted to string
+    firstName: string; // first_name from CFBD
+    lastName: string; // last_name from CFBD
+    fullName: string; // Constructed from first_name and last_name in proxy
+    position: { displayName: string }; // position from CFBD
+    jersey: string; // jersey from CFBD, converted to string
+    team: { displayName: string; slug: string }; // team (school name) from CFBD
+    weight: number | null; // weight from CFBD
+    height: number | null; // height from CFBD
+    hometown: string | null; // Placeholder for now, CFBD provides city/state separately
+    teamColor: string | null; // Not directly from CFBD players endpoint
+    teamColorSecondary: string | null; // Not directly from CFBD players endpoint
 }
 
-// NOTE: The `CfbdTeam` interface below is for *raw* CFBD data.
-// Your frontend `page.tsx` now expects `FormattedTeamForFrontend` which is produced by your proxy.
-// So, this interface here is largely for documentation/reference and isn't directly used
-// for the `apiColleges` state type, which is `{ name: string; id: string }[]`.
+// This still aligns with CFBD team data returned by the 'teams' target in your /api/main-api route
 interface CfbdTeam {
     id: number;
     school: string;
@@ -49,7 +44,6 @@ interface CfbdTeam {
         state: string | null;
         zip: string | null;
         country_code: string | null;
-        timezone: string | null;
         latitude: number | null;
         longitude: number | null;
         elevation: number | null;
@@ -61,10 +55,9 @@ interface CfbdTeam {
 }
 
 // And the FormattedTeamForFrontend interface from your route.ts
-// This interface MUST match the output of your /api/main-api route for target=teams
 interface FormattedTeamForFrontend {
-    id: string; // This is crucial: CFBD's ID is number, your proxy converts to string
-    collegeDisplayName: string;
+    id: string;
+    collegeDisplayName: string; // <--- This is the new property name for the frontend to use
     mascot: string;
     conference: string;
     classification: string;
@@ -77,7 +70,7 @@ interface FormattedTeamForFrontend {
 // --- Component Props Interfaces ---
 interface FilterSidebarProps {
     onApplyFilters: (filters: { college: string; year: string; position: string; playerName: string; maxPlayers: number }) => void;
-    colleges: { name: string; id: string }[]; // ID is string now from FormattedTeamForFrontend
+    colleges: { name: string; id: string }[];
     years: string[];
     positions: string[];
     isLoadingFilters: boolean;
@@ -110,6 +103,7 @@ interface PlayerResultsProps {
 // --- PlayerCard Component (Uses .player-card class from globals.css) ---
 const PlayerCard: React.FC<PlayerCardProps> = ({ player, searchYear }) => {
     const displayName = player.fullName || `${player.firstName || ''} ${player.lastName || ''}`.trim() || 'N/A Name';
+
     const encodedPlayer = encodeURIComponent(JSON.stringify(player));
 
     return (
@@ -118,6 +112,10 @@ const PlayerCard: React.FC<PlayerCardProps> = ({ player, searchYear }) => {
                 <h4>{displayName}</h4>
                 <p>{player.team?.displayName || 'N/A Team'} | {player.position?.displayName || 'N/A Pos'} | {searchYear || 'N/A Season'}</p>
                 {player.jersey !== 'N/A' && <p>Jersey: #{player.jersey}</p>}
+                {/* Re-added height/weight as CFBD player endpoint provides them */}
+                {player.height !== null && player.weight !== null && (
+                    <p>Height: {Math.floor(player.height / 12)}'{player.height % 12}" | Weight: {player.weight} lbs</p>
+                )}
             </div>
         </Link>
     );
@@ -243,7 +241,7 @@ const FilterSidebar: React.FC<FilterSidebarProps> = ({
         event.preventDefault();
         onApplyFilters({
             college: collegeValue,
-            year: '2024', // HARDCODE YEAR HERE FOR PLAYER SEARCH
+            year: '2024',
             position: '',
             playerName: playerNameValue.trim(),
             maxPlayers: maxPlayersValue,
@@ -274,8 +272,6 @@ const FilterSidebar: React.FC<FilterSidebarProps> = ({
                                 <option value="">All Colleges</option>
                                 {colleges.length > 0 ? (
                                     colleges.map((college) => (
-                                        // The 'value' should be the 'name' (collegeDisplayName) because that's what the backend expects for 'team' param
-                                        // But the 'key' should be the 'id' for React's reconciliation
                                         <option key={college.id} value={college.name}>{college.name}</option>
                                     ))
                                 ) : (
@@ -342,13 +338,12 @@ const CollegeFootballApp: React.FC = () => {
 
     const [hasSearched, setHasSearched] = useState(false);
 
+
     const [isLoadingFilters, setIsLoadingFilters] = useState(true);
     const [apiColleges, setApiColleges] = useState<{ name: string; id: string }[]>([]);
     const [apiYears, setApiYears] = useState<string[]>([]);
     const [apiPositions, setApiPositions] = useState<string[]>([]);
 
-    // This map might be useful if you need to convert college display names back to ESPN slugs/IDs
-    // for player searches if your API route for 'players' requires a slug/ID.
     const [collegeNameToIdMap, setCollegeNameToIdMap] = useState<Map<string, string>>(new Map());
 
 
@@ -369,10 +364,10 @@ const CollegeFootballApp: React.FC = () => {
                 setApiYears(generatedYears);
 
                 // --- Fetch Teams from CFBD API via Proxy ---
-                const currentYearForTeams = '2024'; // CFBD teams endpoint usually takes a year
+                const currentYearForTeams = '2024';
                 const teamsProxyUrl = `/api/main-api?target=teams&year=${currentYearForTeams}`;
 
-                console.log(`[DEBUG page.tsx] Fetching teams via proxy: ${teamsProxyUrl}`);
+                console.log(`[DEBUG page.tsx] Fetching teams for year: ${currentYearForTeams} via proxy: ${teamsProxyUrl}`);
                 const teamsResponse = await fetch(teamsProxyUrl);
 
                 if (!teamsResponse.ok) {
@@ -382,9 +377,8 @@ const CollegeFootballApp: React.FC = () => {
                 }
 
                 const teamsData: FormattedTeamForFrontend[] = await teamsResponse.json();
-                console.log("[DEBUG page.tsx] Raw teamsData from API (for filters) via proxy:", teamsData);
+                console.log("Raw teamsData from API (for filters) via proxy:", teamsData);
 
-                // Filter for ONLY FBS and FCS classifications
                 const fbsTeams = teamsData.filter(team => team.classification?.toUpperCase() === 'FBS');
                 const fcsTeams = teamsData.filter(team => team.classification?.toUpperCase() === 'FCS');
 
@@ -395,13 +389,12 @@ const CollegeFootballApp: React.FC = () => {
                 
                 const nameToIdMap = new Map<string, string>();
                 const collegesForDropdown = sortedAndFilteredTeams.map(team => {
-                    nameToIdMap.set(team.collegeDisplayName, team.id); // Use collegeDisplayName for map key
-                    return { name: team.collegeDisplayName, id: team.id }; // For dropdown: display name, value ID
+                    nameToIdMap.set(team.collegeDisplayName, team.id);
+                    return { name: team.collegeDisplayName, id: team.id };
                 });
 
                 setApiColleges(collegesForDropdown);
                 setCollegeNameToIdMap(nameToIdMap);
-
 
                 // --- Fetch Positions from a known list ---
                 const commonPositions = [
@@ -430,6 +423,7 @@ const CollegeFootballApp: React.FC = () => {
         setPlayers([]); // Clear previous results immediately
 
         const hasActiveFilters = appliedFilters.college !== '' || appliedFilters.playerName !== '' || appliedFilters.maxPlayers !== DEFAULT_MAX_PLAYERS;
+        
         if (!hasActiveFilters && !hasSearched) {
             setIsLoadingPlayers(false);
             return;
@@ -443,25 +437,16 @@ const CollegeFootballApp: React.FC = () => {
             queryParams.append('year', seasonToQuery);
 
             if (appliedFilters.college) {
-                // When passing college to backend for players, pass the ID/slug if your ESPN API needs it.
-                // If your backend proxy (route.ts) is doing the name-to-slug mapping, then passing `appliedFilters.college` (the display name) is fine.
-                // Based on previous discussions, it's assumed `appliedFilters.college` (the `collegeDisplayName`) can be used by the backend.
-                // However, for ESPN's `teams/{slug}/roster` endpoint, you need the actual slug.
-                // So, if `appliedFilters.college` is "Michigan Wolverines", and ESPN needs "michigan", your backend needs to handle that.
-                // A better approach would be to send the `id` from `apiColleges` to the backend.
-                // Let's modify this slightly to send the ID if available.
-                const collegeId = collegeNameToIdMap.get(appliedFilters.college);
-                if (collegeId) {
-                    queryParams.append('team', collegeId); // Send the ID (which might be the ESPN slug/ID)
-                    console.log(`[DEBUG page.tsx] Searching players for college ID: ${collegeId}`);
-                } else {
-                    console.warn(`[DEBUG page.tsx] Could not find ID for college: ${appliedFilters.college}. Skipping team filter for players.`);
-                }
+                // IMPORTANT: For CFBD /players endpoint, 'team' parameter expects the full school name.
+                // appliedFilters.college already holds the school's display name (e.g., "Auburn").
+                queryParams.append('team', appliedFilters.college);
+                console.log(`[DEBUG page.tsx] Searching players for college name: ${appliedFilters.college}`);
             }
             if (appliedFilters.playerName) {
                 queryParams.append('search', appliedFilters.playerName);
             }
             queryParams.append('limit', appliedFilters.maxPlayers.toString());
+
 
             const url = `/api/main-api?${queryParams.toString()}`;
             console.log("[DEBUG page.tsx] Full players proxy URL being sent:", url);
@@ -470,8 +455,8 @@ const CollegeFootballApp: React.FC = () => {
 
             if (!response.ok) {
                 const errorBody = await response.text();
-                console.error(`Error from proxy (players): ${response.status} ${response.statusText}. Details:`, errorBody);
-                throw new Error(`Proxy error fetching players: ${response.status} ${response.statusText}. Details: ${errorBody}`);
+                console.error(`Error from proxy: ${response.status} ${response.statusText}. Details:`, errorBody);
+                throw new Error(`Proxy error: ${response.status} ${response.statusText}. Details: ${errorBody}`);
             }
 
             const data: CfbdPlayer[] = await response.json();
@@ -486,8 +471,9 @@ const CollegeFootballApp: React.FC = () => {
         } finally {
             setIsLoadingPlayers(false);
         }
-    }, [appliedFilters, hasSearched, collegeNameToIdMap]); // Added collegeNameToIdMap to dependencies
+    }, [appliedFilters, hasSearched]);
 
+    // Trigger player fetch when filters change or initially if a default search should occur
     useEffect(() => {
         if (hasSearched || appliedFilters.college !== '' || appliedFilters.playerName !== '' || appliedFilters.maxPlayers !== DEFAULT_MAX_PLAYERS) {
             fetchPlayers();
@@ -508,10 +494,10 @@ const CollegeFootballApp: React.FC = () => {
     }, []);
 
     const handleResetAllFilters = useCallback(() => {
-        setAppliedFilters({
-            college: '',
+        setAppliedFilters({ 
+            college: '', 
             year: DEFAULT_PLAYER_SEARCH_YEAR,
-            position: '',
+            position: '', 
             playerName: '',
             maxPlayers: DEFAULT_MAX_PLAYERS,
         });
@@ -522,6 +508,7 @@ const CollegeFootballApp: React.FC = () => {
         setHasSearched(false);
     }, []);
 
+    // Sorting Logic Function
     const getSortedPlayers = useCallback((playersToSort: CfbdPlayer[]) => {
         if (!playersToSort || playersToSort.length === 0) {
             return [];
@@ -539,6 +526,7 @@ const CollegeFootballApp: React.FC = () => {
                     case 'position':
                         return player.position?.displayName || '';
                     case 'jersey':
+                        // Handle conversion from string 'jersey' to number for sorting
                         const jerseyA = player.jersey !== 'N/A' ? parseInt(player.jersey, 10) : 0;
                         const jerseyB = player.jersey !== 'N/A' ? parseInt(player.jersey, 10) : 0;
                         return jerseyA - jerseyB;
@@ -554,6 +542,7 @@ const CollegeFootballApp: React.FC = () => {
                 const comparison = valA.localeCompare(valB);
                 return sortOrder === 'asc' ? comparison : -comparison;
             } else {
+                // This branch will primarily be hit for 'jersey' which is already a numerical comparison result
                 const comparison = valA - valB;
                 return sortOrder === 'asc' ? comparison : -comparison;
             }
