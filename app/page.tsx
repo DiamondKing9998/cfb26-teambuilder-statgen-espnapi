@@ -204,18 +204,18 @@ const PlayerResults: React.FC<PlayerResultsProps> = ({
 const FilterSidebar: React.FC<FilterSidebarProps> = ({
     onApplyFilters,
     colleges,
-    years, // Still passed but not used in rendering
-    positions, // Still passed but not used in rendering
+    years,
+    positions,
     isLoadingFilters,
     onResetFilters,
     currentCollege,
-    currentYear, // Still passed but not used in rendering
-    currentPosition, // Still passed but not used in rendering
+    currentYear,
+    currentPosition,
     currentSearchName,
 }) => {
     const [collegeValue, setCollegeValue] = useState<string>(currentCollege);
-    // Removed yearValue and setYearValue as they are no longer rendered
-    const [positionValue, setPositionValue] = useState<string>(currentPosition); // Keeping for now, will remove in next step
+    const [yearValue, setYearValue] = useState<string>(currentYear);
+    const [positionValue, setPositionValue] = useState<string>(currentPosition);
     const [playerNameValue, setPlayerNameValue] = useState<string>(currentSearchName);
 
     // Update internal state when props from parent (CollegeFootballApp) change
@@ -223,7 +223,10 @@ const FilterSidebar: React.FC<FilterSidebarProps> = ({
         setCollegeValue(currentCollege);
     }, [currentCollege]);
 
-    // Removed useEffect for yearValue
+    useEffect(() => {
+        setYearValue(currentYear);
+    }, [currentYear]);
+
     useEffect(() => {
         setPositionValue(currentPosition);
     }, [currentPosition]);
@@ -237,16 +240,16 @@ const FilterSidebar: React.FC<FilterSidebarProps> = ({
         event.preventDefault();
         onApplyFilters({
             college: collegeValue,
-            year: '', // Hardcode empty as it's removed from UI
-            position: '', // Hardcode empty as it's removed from UI
+            year: yearValue,
+            position: positionValue,
             playerName: playerNameValue.trim(),
         });
     };
 
     const handleReset = () => {
         setCollegeValue('');
-        // setYearValue(''); // No longer needed
-        setPositionValue(''); // No longer needed
+        setYearValue('');
+        setPositionValue('');
         setPlayerNameValue('');
         onResetFilters(); // Trigger reset in parent
     };
@@ -259,7 +262,18 @@ const FilterSidebar: React.FC<FilterSidebarProps> = ({
                     <div className="loading-message">Loading filters...</div>
                 ) : (
                     <>
-                        {/* Removed Season (Year) filter group */}
+                        <div className="filter-group"> {/* Uses the .filter-group class */}
+                            <h3>Season (Year)</h3>
+                            <select
+                                value={yearValue}
+                                onChange={(e) => setYearValue(e.target.value)}
+                            >
+                                <option value="">All Years</option>
+                                {years.map((year) => (
+                                    <option key={year} value={year}>{year}</option>
+                                ))}
+                            </select>
+                        </div>
 
                         <div className="filter-group">
                             <h3>College Team</h3>
@@ -278,7 +292,18 @@ const FilterSidebar: React.FC<FilterSidebarProps> = ({
                             </select>
                         </div>
 
-                        {/* Removed Position filter group */}
+                        <div className="filter-group">
+                            <h3>Position</h3>
+                            <select
+                                value={positionValue}
+                                onChange={(e) => setPositionValue(e.target.value)}
+                            >
+                                <option value="">All Positions</option>
+                                {positions.map((pos) => (
+                                    <option key={pos} value={pos}>{pos}</option>
+                                ))}
+                            </select>
+                        </div>
 
                         <div className="filter-group">
                             <h3>Player Name</h3>
@@ -306,8 +331,8 @@ const FilterSidebar: React.FC<FilterSidebarProps> = ({
 const CollegeFootballApp: React.FC = () => {
     const [appliedFilters, setAppliedFilters] = useState({
         college: '',
-        year: '', // Keeping here for interface consistency, but will always be empty from FilterSidebar
-        position: '', // Keeping here for interface consistency, but will always be empty from FilterSidebar
+        year: '',
+        position: '',
         playerName: '',
     });
 
@@ -325,8 +350,8 @@ const CollegeFootballApp: React.FC = () => {
 
     const [isLoadingFilters, setIsLoadingFilters] = useState(true);
     const [apiColleges, setApiColleges] = useState<{ name: string; id: number }[]>([]);
-    const [apiYears, setApiYears] = useState<string[]>([]); // Still fetched but not used for filtering
-    const [apiPositions, setApiPositions] = useState<string[]>([]); // Still fetched but not used for filtering
+    const [apiYears, setApiYears] = useState<string[]>([]);
+    const [apiPositions, setApiPositions] = useState<string[]>([]);
 
     const [collegeNameToIdMap, setCollegeNameToIdMap] = useState<Map<string, number>>(new Map());
 
@@ -345,7 +370,7 @@ const CollegeFootballApp: React.FC = () => {
                 for (let year = endYear; year >= startYear; year--) {
                     generatedYears.push(year.toString());
                 }
-                setApiYears(generatedYears); // Still store, but year filter will be hardcoded
+                setApiYears(generatedYears);
 
                 // --- Fetch Teams from CFBD API via Proxy ---
                 const currentYearForTeams = '2024'; // Using a fixed year for teams for now
@@ -388,7 +413,7 @@ const CollegeFootballApp: React.FC = () => {
                     'ATH', 'PK', 'ST'
                 ].sort();
 
-                setApiPositions(commonPositions); // Still store, but position filter will be hardcoded
+                setApiPositions(commonPositions);
 
             } catch (error: any) {
                 console.error('Error in fetchFilterOptions:', error);
@@ -407,7 +432,7 @@ const CollegeFootballApp: React.FC = () => {
         setPlayerError(null);
         setPlayers([]); // Clear previous results immediately
 
-        const hasActiveFilters = appliedFilters.college !== '' || appliedFilters.playerName !== ''; // Check only college and player name
+        const hasActiveFilters = Object.values(appliedFilters).some(value => value !== '');
         if (!hasActiveFilters && !hasSearched) { // Only return if no filters are set and no search has been initiated
             setIsLoadingPlayers(false);
             return;
@@ -417,14 +442,16 @@ const CollegeFootballApp: React.FC = () => {
             const queryParams = new URLSearchParams();
             queryParams.append('target', 'players');
 
-            // Always query for a default year, or the one from appliedFilters if it somehow gets set externally
+            // Default to the latest year if no year is selected and years are loaded
             const seasonToQuery = appliedFilters.year || (apiYears.length > 0 ? apiYears[0] : '2024');
             queryParams.append('year', seasonToQuery);
 
             if (appliedFilters.college) {
                 queryParams.append('team', appliedFilters.college);
             }
-            // Removed appliedFilters.position check
+            if (appliedFilters.position) {
+                queryParams.append('position', appliedFilters.position);
+            }
             if (appliedFilters.playerName) {
                 queryParams.append('search', appliedFilters.playerName);
             }
@@ -456,21 +483,14 @@ const CollegeFootballApp: React.FC = () => {
 
     // Trigger player fetch when filters change or initially if a default search should occur
     useEffect(() => {
-        if (hasSearched || appliedFilters.college !== '' || appliedFilters.playerName !== '') { // Only trigger if search initiated or relevant filters are set
+        if (hasSearched || Object.values(appliedFilters).some(value => value !== '')) {
             fetchPlayers();
         }
-    }, [fetchPlayers, appliedFilters.college, appliedFilters.playerName, hasSearched]);
+    }, [fetchPlayers, appliedFilters, hasSearched]);
 
 
     const handleApplyFilters = useCallback((filters: { college: string; year: string; position: string; playerName: string }) => {
-        // Only update college and playerName in appliedFilters
-        setAppliedFilters(prevFilters => ({
-            ...prevFilters,
-            college: filters.college,
-            playerName: filters.playerName,
-            year: '', // Ensure year is reset to empty string in applied filters if it's no longer selectable
-            position: '', // Ensure position is reset to empty string in applied filters if it's no longer selectable
-        }));
+        setAppliedFilters(filters);
         setHasSearched(true); // Mark that a search has been initiated
     }, []);
 
@@ -530,27 +550,27 @@ const CollegeFootballApp: React.FC = () => {
             <header> {/* Uses the header class from globals.css */}
                 <h1>CFB26 Teambuilder</h1>
                 <p>College Football Player Search (CFBD API)</p>
-                <p>Find college players by team or name.</p>
+                <p>Find college players by team, season, position, or name.</p>
             </header>
 
             <div className="main-container"> {/* Uses the .main-container class from globals.css */}
                 <FilterSidebar
                     onApplyFilters={handleApplyFilters}
                     colleges={apiColleges}
-                    years={apiYears} // Still passed, but not used in FilterSidebar for rendering
-                    positions={apiPositions} // Still passed, but not used in FilterSidebar for rendering
+                    years={apiYears}
+                    positions={apiPositions}
                     isLoadingFilters={isLoadingFilters}
                     onResetFilters={handleResetAllFilters}
                     currentCollege={appliedFilters.college}
-                    currentYear={appliedFilters.year} // Still passed, but not used in FilterSidebar for rendering
-                    currentPosition={appliedFilters.position} // Still passed, but not used in FilterSidebar for rendering
+                    currentYear={appliedFilters.year}
+                    currentPosition={appliedFilters.position}
                     currentSearchName={appliedFilters.playerName}
                 />
                 <PlayerResults
                     players={sortedPlayers} // Pass the already sorted players
                     isLoadingPlayers={isLoadingPlayers}
                     error={playerError}
-                    currentSearchYear={appliedFilters.year} // Year might be empty string now, will default to 2024 in PlayerCard via 'N/A Season'
+                    currentSearchYear={appliedFilters.year}
                     // Pass sorting state and setters to PlayerResults
                     sortBy={sortBy}
                     setSortBy={setSortBy}
