@@ -1,108 +1,106 @@
-// app/api/main-api/route.ts
+// src/app/api/main-api/route.ts
 
-import { NextRequest, NextResponse } from 'next/server';
-import { getRoster } from '@/lib/getRoster'; // Import the new function
+import { NextRequest, NextResponse } from 'next/server'; // Add this line
 
-// Define your CollegeFootballData.com API key (still needed here for teams, and getRoster needs it)
-const CFBD_API_KEY = process.env.CFBD_API_KEY || 'YOUR_CFBD_API_KEY_HERE';
-
-// Interfaces (These should ideally be in a shared types file, but keeping them here for now)
-interface FormattedTeamForFrontend {
-    id: string;
-    collegeDisplayName: string;
-    mascot: string;
-    conference: string;
-    classification: string;
-    color: string;
-    alternateColor: string;
-    logo: string;
-    darkLogo: string;
-}
-
-// NOTE: CfbdPlayer interface is also defined in getRoster.ts.
-// If these interfaces become more complex or used in more places, consider
-// moving them to a dedicated `types.ts` file (e.g., `types/cfbd-types.ts`)
-// and importing them in both `route.ts` and `getRoster.ts`.
+// ... rest of your file
+// ... (imports and existing code)
 
 export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const target = searchParams.get('target');
-    const year = searchParams.get('year') || new Date().getFullYear().toString();
-    const teamName = searchParams.get('team');
-    const playerNameSearch = searchParams.get('search');
-
-    console.log(`[DEBUG main-api] CFBD_API_KEY status: ${CFBD_API_KEY && CFBD_API_KEY !== 'YOUR_CFBD_API_KEY_HERE' ? 'Set' : 'NOT SET or Default Placeholder'}`);
-
-    // Ensure API key is present for the main handler, as teams endpoint uses it directly
-    if (!CFBD_API_KEY || CFBD_API_KEY === 'YOUR_CFBD_API_KEY_HERE') {
-        console.error('[ERROR main-api] CollegeFootballData.com API key is not configured or is using the default placeholder.');
-        return NextResponse.json({ error: 'CollegeFootballData.com API key not configured.' }, { status: 500 });
-    }
+    const year = searchParams.get('year');
+    const team = searchParams.get('team');
+    const search = searchParams.get('search');
+    const limit = searchParams.get('limit'); // <-- ADDED THIS LINE
 
     try {
-        if (target === 'teams') {
-            const cfbdTeamsUrl = `https://api.collegefootballdata.com/teams?year=${year}`;
-            console.log(`[DEBUG main-api] Fetching teams from CFBD: ${cfbdTeamsUrl}`);
+        let data;
+        if (target === 'players') {
+            // Construct ESPN API URL
+            let espnApiUrl = `https://site.api.espn.com/apis/site/v2/sports/football/college-football/roster?group=50`; // Base URL with default group size
+            
+            if (year) {
+                espnApiUrl += `&season=${year}`;
+            }
+            if (team) {
+                // You'd need a way to map 'team' name back to ESPN team ID or slug
+                // For simplicity, let's assume your existing team mapping handles this.
+                // Or if 'team' is already the slug, append directly.
+                // This is a placeholder, actual implementation depends on your ESPN team ID mapping.
+                espnApiUrl += `&team=${team}`; // Assuming 'team' parameter is the slug/ID ESPN expects
+            }
+            if (search) {
+                // ESPN's roster API doesn't have a direct 'search by player name'
+                // You'd typically fetch the whole roster and filter client-side,
+                // or fetch individual player details if you have player IDs.
+                // For now, this proxy will fetch the roster and then filter *here*.
+            }
+            
+            // Apply the limit here, either to the API call directly if supported,
+            // or by slicing the results from ESPN.
+            // ESPN roster API doesn't have a direct 'limit' or 'per_page' like CFBD.
+            // You will need to fetch the full roster and then slice it here.
 
-            const cfbdResponse = await fetch(cfbdTeamsUrl, {
-                headers: {
-                    'Authorization': `Bearer ${CFBD_API_KEY}`
-                },
-            });
+            const espnResponse = await fetch(espnApiUrl);
+            if (!espnResponse.ok) {
+                throw new Error(`Failed to fetch ESPN roster: ${espnResponse.statusText}`);
+            }
+            const espnData = await espnResponse.json();
 
-            if (!cfbdResponse.ok) {
-                const errorText = await cfbdResponse.text();
-                console.error(`[ERROR main-api] CFBD Teams API returned ${cfbdResponse.status} ${cfbdResponse.statusText}. Response body:`, errorText);
-                return NextResponse.json({ error: `Failed to fetch teams from CFBD: ${cfbdResponse.statusText}. Details: ${errorText}` }, { status: cfbdResponse.status });
+            let players = espnData.athletes || []; // Assuming 'athletes' is the array of players
+
+            // Filter by search name (if present)
+            if (search) {
+                const searchLower = search.toLowerCase();
+                players = players.filter((player: any) => 
+                    player.displayName?.toLowerCase().includes(searchLower) ||
+                    player.firstName?.toLowerCase().includes(searchLower) ||
+                    player.lastName?.toLowerCase().includes(searchLower)
+                );
             }
 
-            const teams: any[] = await cfbdResponse.json();
+            // Apply the limit
+            if (limit) {
+                const parsedLimit = parseInt(limit, 10);
+                if (!isNaN(parsedLimit) && parsedLimit > 0) {
+                    players = players.slice(0, parsedLimit); // <-- Slicing results here
+                }
+            }
 
-            const formattedTeams: FormattedTeamForFrontend[] = teams.map(team => ({
-                id: team.id.toString(),
-                collegeDisplayName: team.school,
-                mascot: team.mascot || 'N/A',
-                conference: team.conference || 'Independent',
-                classification: team.classification || 'N/A',
-                color: team.color || '#000000',
-                alternateColor: team.alt_color || '#FFFFFF',
-                logo: team.logos?.[0] || '',
-                darkLogo: team.logos?.[1] || team.logos?.[0] || '',
+            // Transform ESPN player data to CfbdPlayer interface
+            data = players.map((player: any) => ({
+                id: player.id,
+                firstName: player.firstName,
+                lastName: player.lastName,
+                fullName: player.displayName, // ESPN usually has a displayName
+                position: { displayName: player.position?.displayName || 'N/A' },
+                jersey: player.jersey || 'N/A',
+                team: { 
+                    displayName: player.team?.displayName || 'N/A', 
+                    slug: player.team?.slug || 'N/A' 
+                },
+                weight: null, // ESPN roster doesn't usually have these directly
+                height: null,
+                hometown: null,
+                teamColor: null,
+                teamColorSecondary: null,
             }));
 
-            const fbsTeams = formattedTeams.filter(team => team.classification?.toUpperCase() === 'FBS');
-            const fcsTeams = formattedTeams.filter(team => team.classification?.toUpperCase() === 'FCS');
-
-            const filteredAndSortedTeams = [...fbsTeams, ...fcsTeams].sort((a, b) =>
-                a.collegeDisplayName.localeCompare(b.collegeDisplayName)
-            );
-
-            console.log(`[DEBUG main-api] Returning ${filteredAndSortedTeams.length} FBS/FCS teams for year ${year}.`);
-            return NextResponse.json(filteredAndSortedTeams);
-
-        } else if (target === 'players') {
-            if (!teamName && !playerNameSearch) {
-                console.warn('[WARN main-api] Missing team or search parameter for players target, returning 400.');
-                return NextResponse.json({ error: 'Missing team or search parameter for players target.' }, { status: 400 });
-            }
-
-            try {
-                // Call the new getRoster function
-                const players = await getRoster(year, teamName || undefined, playerNameSearch || undefined); // Pass undefined if not present
-
-                console.log(`[DEBUG main-api] Returning ${players.length} players from getRoster for year ${year} and team ${teamName || 'all'} (after search filter).`);
-                return NextResponse.json(players);
-            } catch (error: any) {
-                console.error('[ERROR main-api] Error fetching players via getRoster:', error.message);
-                return NextResponse.json({ error: `Failed to fetch players: ${error.message}` }, { status: 500 });
-            }
-
-        } else {
-            console.warn(`[WARN main-api] Invalid target parameter received: ${target}, returning 400.`);
-            return NextResponse.json({ error: 'Invalid target parameter.' }, { status: 400 });
+        } else if (target === 'teams') {
+            // ... (existing teams fetch logic, no limit needed here)
         }
-    } catch (error: any) {
-        console.error('[FATAL ERROR main-api] Proxy caught an unhandled error:', error);
-        return NextResponse.json({ error: `Internal server error: ${error.message}` }, { status: 500 });
+        // ... (other targets)
+
+        return new Response(JSON.stringify(data), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+        });
+
+    } catch (error) {
+        console.error('API proxy error:', error);
+        return new Response(JSON.stringify({ error: (error as Error).message }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json' },
+        });
     }
 }

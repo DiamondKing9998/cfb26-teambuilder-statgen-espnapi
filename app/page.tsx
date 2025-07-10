@@ -71,7 +71,7 @@ interface FormattedTeamForFrontend {
 
 // --- Component Props Interfaces ---
 interface FilterSidebarProps {
-    onApplyFilters: (filters: { college: string; year: string; position: string; playerName: string }) => void;
+    onApplyFilters: (filters: { college: string; year: string; position: string; playerName: string; maxPlayers: number }) => void; // MODIFIED
     // Update colleges type to match FormattedTeamForFrontend's relevant properties
     colleges: { name: string; id: string }[]; // ID is string now from FormattedTeamForFrontend
     years: string[];
@@ -82,6 +82,7 @@ interface FilterSidebarProps {
     currentYear: string; // Still passed but not used in rendering
     currentPosition: string; // This prop is still passed, but not used internally in FilterSidebar's state
     currentSearchName: string;
+    currentMaxPlayers: number; // ADDED
 }
 
 interface PlayerCardProps {
@@ -231,9 +232,11 @@ const FilterSidebar: React.FC<FilterSidebarProps> = ({
     currentYear, // Still passed but not used in rendering
     currentPosition, // Still passed but not used in rendering
     currentSearchName,
+    currentMaxPlayers, // ADDED
 }) => {
     const [collegeValue, setCollegeValue] = useState<string>(currentCollege);
     const [playerNameValue, setPlayerNameValue] = useState<string>(currentSearchName);
+    const [maxPlayersValue, setMaxPlayersValue] = useState<number>(currentMaxPlayers); // ADDED
 
     // Update internal state when props from parent (CollegeFootballApp) change
     useEffect(() => {
@@ -244,6 +247,10 @@ const FilterSidebar: React.FC<FilterSidebarProps> = ({
         setPlayerNameValue(currentSearchName);
     }, [currentSearchName]);
 
+    useEffect(() => { // ADDED
+        setMaxPlayersValue(currentMaxPlayers);
+    }, [currentMaxPlayers]);
+
 
     const handleSubmit = (event: React.FormEvent) => {
         event.preventDefault();
@@ -252,12 +259,14 @@ const FilterSidebar: React.FC<FilterSidebarProps> = ({
             year: '2024', // <--- HARDCODE YEAR HERE FOR PLAYER SEARCH
             position: '', // Hardcode empty as it's removed from UI
             playerName: playerNameValue.trim(),
+            maxPlayers: maxPlayersValue, // ADDED
         });
     };
 
     const handleReset = () => {
         setCollegeValue('');
         setPlayerNameValue('');
+        setMaxPlayersValue(50); // RESET TO DEFAULT, MODIFIED
         onResetFilters(); // Trigger reset in parent
     };
 
@@ -296,6 +305,21 @@ const FilterSidebar: React.FC<FilterSidebarProps> = ({
                             />
                         </div>
 
+                        {/* ADDED: Max Players Listed Filter */}
+                        <div className="filter-group">
+                            <h3>Max Players Listed</h3>
+                            <select
+                                value={maxPlayersValue}
+                                onChange={(e) => setMaxPlayersValue(parseInt(e.target.value))}
+                            >
+                                <option value={10}>10</option>
+                                <option value={25}>25</option>
+                                <option value={50}>50</option>
+                                <option value={100}>100</option>
+                                <option value={200}>200</option>
+                            </select>
+                        </div>
+
                         <div className="button-group"> {/* Uses the .button-group class */}
                             <button type="submit" className="submit-button">Search Players</button>
                             <button type="button" className="reset-button" onClick={handleReset}>Reset Filters</button>
@@ -312,12 +336,14 @@ const FilterSidebar: React.FC<FilterSidebarProps> = ({
 const CollegeFootballApp: React.FC = () => {
     // HARDCODE THE YEAR FOR PLAYER SEARCHES HERE TO '2024'
     const DEFAULT_PLAYER_SEARCH_YEAR = '2024';
+    const DEFAULT_MAX_PLAYERS = 50; // ADDED DEFAULT FOR MAX PLAYERS
 
     const [appliedFilters, setAppliedFilters] = useState({
         college: '',
         year: DEFAULT_PLAYER_SEARCH_YEAR, // <--- Initialize with 2024
         position: '',
         playerName: '',
+        maxPlayers: DEFAULT_MAX_PLAYERS, // ADDED
     });
 
     const [players, setPlayers] = useState<CfbdPlayer[]>([]);
@@ -420,7 +446,7 @@ const CollegeFootballApp: React.FC = () => {
         setPlayerError(null);
         setPlayers([]); // Clear previous results immediately
 
-        const hasActiveFilters = appliedFilters.college !== '' || appliedFilters.playerName !== '';
+        const hasActiveFilters = appliedFilters.college !== '' || appliedFilters.playerName !== '' || appliedFilters.maxPlayers !== DEFAULT_MAX_PLAYERS; // MODIFIED
         // Only return if no filters are set AND no search has been initiated (initial load)
         if (!hasActiveFilters && !hasSearched) {
             setIsLoadingPlayers(false);
@@ -441,6 +467,9 @@ const CollegeFootballApp: React.FC = () => {
             if (appliedFilters.playerName) {
                 queryParams.append('search', appliedFilters.playerName);
             }
+            // ADDED: Max Players parameter to the API request
+            queryParams.append('limit', appliedFilters.maxPlayers.toString());
+
 
             const url = `/api/main-api?${queryParams.toString()}`;
             console.log("[DEBUG page.tsx] Full players proxy URL being sent:", url); // Added debug log
@@ -470,17 +499,18 @@ const CollegeFootballApp: React.FC = () => {
     // Trigger player fetch when filters change or initially if a default search should occur
     useEffect(() => {
         // Only trigger fetch if a search has been initiated or filters are present
-        if (hasSearched || appliedFilters.college !== '' || appliedFilters.playerName !== '') {
+        if (hasSearched || appliedFilters.college !== '' || appliedFilters.playerName !== '' || appliedFilters.maxPlayers !== DEFAULT_MAX_PLAYERS) { // MODIFIED
             fetchPlayers();
         }
-    }, [fetchPlayers, appliedFilters.college, appliedFilters.playerName, hasSearched]);
+    }, [fetchPlayers, appliedFilters.college, appliedFilters.playerName, appliedFilters.maxPlayers, hasSearched]); // MODIFIED DEPENDENCIES
 
 
-    const handleApplyFilters = useCallback((filters: { college: string; year: string; position: string; playerName: string }) => {
+    const handleApplyFilters = useCallback((filters: { college: string; year: string; position: string; playerName: string; maxPlayers: number }) => { // MODIFIED
         setAppliedFilters(prevFilters => ({
             ...prevFilters,
             college: filters.college,
             playerName: filters.playerName,
+            maxPlayers: filters.maxPlayers, // ADDED
             // Keep the year fixed to DEFAULT_PLAYER_SEARCH_YEAR from state initialization
             year: DEFAULT_PLAYER_SEARCH_YEAR,
             position: '',
@@ -493,7 +523,8 @@ const CollegeFootballApp: React.FC = () => {
             college: '', 
             year: DEFAULT_PLAYER_SEARCH_YEAR, // Reset to 2024
             position: '', 
-            playerName: '' 
+            playerName: '',
+            maxPlayers: DEFAULT_MAX_PLAYERS, // ADDED
         });
         setPlayers([]);
         setPlayerError(null);
@@ -565,6 +596,7 @@ const CollegeFootballApp: React.FC = () => {
                     currentYear={appliedFilters.year} // This will now correctly reflect 2024
                     currentPosition={appliedFilters.position}
                     currentSearchName={appliedFilters.playerName}
+                    currentMaxPlayers={appliedFilters.maxPlayers} // ADDED
                 />
                 <PlayerResults
                     players={sortedPlayers}
