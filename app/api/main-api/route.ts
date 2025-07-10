@@ -49,9 +49,16 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get('search');
     const limit = searchParams.get('limit');
 
+    // --- ADD THIS LOG ---
+    console.log(`[DEBUG route.ts] Received target: ${target}, year: ${year}, teamName: ${teamName}, search: ${search}, limit: ${limit}`);
+    // --------------------
+
     const CFBD_API_KEY = process.env.CFBD_API_KEY;
 
     if (!CFBD_API_KEY) {
+        // --- ADD THIS LOG FOR API KEY CHECK ---
+        console.error('[Proxy] CFBD_API_KEY is not set!');
+        // --------------------------------------
         return new NextResponse(JSON.stringify({ error: 'CFBD_API_KEY is not set in environment variables.' }), {
             status: 500,
             headers: { 'Content-Type': 'application/json' },
@@ -90,13 +97,26 @@ export async function GET(request: NextRequest) {
                 }
             });
 
+            // --- ADD THESE LOGS FOR RESPONSE STATUS AND BODY ---
+            console.log(`[Proxy] CFBD Players API Response Status: ${cfbdResponse.status}`);
+            const responseBody = await cfbdResponse.text(); // Read the body once
+            console.log(`[Proxy] CFBD Players API Raw Response Body (first 500 chars):`, responseBody.substring(0, 500));
+            // --------------------------------------------------
+
             if (!cfbdResponse.ok) {
-                const errorBody = await cfbdResponse.text();
-                console.error(`Error from CFBD Players API: ${cfbdResponse.status} ${cfbdResponse.statusText}. Details:`, errorBody);
-                throw new Error(`Failed to fetch CFBD players: ${cfbdResponse.statusText}. Details: ${errorBody}`);
+                // Use the already-read responseBody for error reporting
+                console.error(`Error from CFBD Players API: ${cfbdResponse.status} ${cfbdResponse.statusText}. Details:`, responseBody);
+                throw new Error(`Failed to fetch CFBD players: ${cfbdResponse.statusText}. Details: ${responseBody}`);
             }
 
-            const rawPlayers: CfbdPlayerRaw[] = await cfbdResponse.json();
+            let rawPlayers: CfbdPlayerRaw[];
+            try {
+                rawPlayers = JSON.parse(responseBody); // Try parsing the logged body
+            } catch (jsonError) {
+                console.error("[Proxy] Failed to parse CFBD Players API response as JSON:", jsonError);
+                throw new Error(`Invalid JSON response from CFBD Players API. Raw body starts with: ${responseBody.substring(0, 500)}...`); // Show part of the invalid JSON
+            }
+            
             console.log("[Proxy] Raw CFBD players fetched:", rawPlayers.length);
 
             // Apply limit after fetching from CFBD
@@ -139,13 +159,26 @@ export async function GET(request: NextRequest) {
                 }
             });
 
+            // --- ADD THESE LOGS FOR TEAMS RESPONSE STATUS AND BODY TOO ---
+            console.log(`[Proxy] CFBD Teams API Response Status: ${cfbdResponse.status}`);
+            const responseBody = await cfbdResponse.text();
+            console.log(`[Proxy] CFBD Teams API Raw Response Body (first 500 chars):`, responseBody.substring(0, 500));
+            // -------------------------------------------------------------
+
             if (!cfbdResponse.ok) {
-                const errorBody = await cfbdResponse.text();
+                const errorBody = await cfbdResponse.text(); // This line might error if body was already read once above, hence read it once.
                 console.error(`Error from CFBD Teams API: ${cfbdResponse.status} ${cfbdResponse.statusText}. Details:`, errorBody);
                 throw new Error(`Failed to fetch CFBD teams: ${cfbdResponse.statusText}. Details: ${errorBody}`);
             }
+            
+            let cfbdTeams: CfbdTeamRaw[];
+            try {
+                cfbdTeams = JSON.parse(responseBody); // Use the already-read body
+            } catch (jsonError) {
+                console.error("[Proxy] Failed to parse CFBD Teams API response as JSON:", jsonError);
+                throw new Error(`Invalid JSON response from CFBD Teams API. Raw body starts with: ${responseBody.substring(0, 500)}...`);
+            }
 
-            const cfbdTeams: CfbdTeamRaw[] = await cfbdResponse.json();
             console.log("[Proxy] Raw CFBD teams fetched:", cfbdTeams.length);
 
             // Filter for FBS and FCS, then map to FormattedTeamForFrontend
