@@ -366,8 +366,8 @@ const CollegeFootballApp: React.FC = () => {
                 setApiYears(generatedYears); // Still store, but year filter will be hardcoded
 
                 // --- Fetch Teams from CFBD API via Proxy ---
-                const currentYearForTeams = '2024'; // Using a fixed year for teams for now
-                // **** IMPORTANT: Changed API endpoint to /api/main-api ****
+                // *** UPDATED YEAR TO 2025 AS REQUESTED ***
+                const currentYearForTeams = '2025'; 
                 const teamsProxyUrl = `/api/main-api?target=teams&year=${currentYearForTeams}`;
 
                 console.log(`Fetching teams for year: ${currentYearForTeams} via proxy: ${teamsProxyUrl}`);
@@ -383,7 +383,7 @@ const CollegeFootballApp: React.FC = () => {
                 const teamsData: FormattedTeamForFrontend[] = await teamsResponse.json();
                 console.log("Raw teamsData from API (for filters) via proxy:", teamsData);
 
-                // --- MODIFIED: Explicitly filter for ONLY FBS and FCS classifications ---
+                // --- Filtering for ONLY FBS and FCS classifications ---
                 const fbsTeams = teamsData.filter(team => team.classification?.toUpperCase() === 'FBS');
                 const fcsTeams = teamsData.filter(team => team.classification?.toUpperCase() === 'FCS');
 
@@ -439,7 +439,7 @@ const CollegeFootballApp: React.FC = () => {
             queryParams.append('target', 'players');
 
             // Always query for a default year, or the one from appliedFilters if it somehow gets set externally
-            const seasonToQuery = appliedFilters.year || (apiYears.length > 0 ? apiYears[0] : '2024');
+            const seasonToQuery = appliedFilters.year || (apiYears.length > 0 ? apiYears[0] : '2025'); // Use 2025 as default
             queryParams.append('year', seasonToQuery);
 
             if (appliedFilters.college) {
