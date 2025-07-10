@@ -1,10 +1,12 @@
+// src/app/page.tsx
+
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 
 // --- Interfaces for CollegeFootballData.com API (REVISED for CFBD Player API) ---
-// This interface now reflects the data structure we expect from CFBD's /players endpoint
+// This interface now reflects the data structure we expect from CFBD's /roster endpoint
 // after it's been mapped in your /api/main-api/route.ts
 interface CfbdPlayer {
     id: string; // athlete_id from CFBD, converted to string
@@ -16,7 +18,7 @@ interface CfbdPlayer {
     team: { displayName: string; slug: string }; // team (school name) from CFBD
     weight: number | null; // weight from CFBD
     height: number | null; // height from CFBD
-    hometown: string | null; // Placeholder for now, CFBD provides city/state separately
+    hometown: string | null; // Available from /roster
     teamColor: string | null; // Not directly from CFBD players endpoint
     teamColorSecondary: string | null; // Not directly from CFBD players endpoint
 }
@@ -431,24 +433,29 @@ const CollegeFootballApp: React.FC = () => {
 
         try {
             const queryParams = new URLSearchParams();
-            queryParams.append('target', 'players');
+            // --- UPDATED: Change target from 'players' to 'roster' ---
+            queryParams.append('target', 'roster'); // Changed from 'players' to 'roster'
+            // --------------------------------------------------------
 
             const seasonToQuery = appliedFilters.year;
             queryParams.append('year', seasonToQuery);
 
             if (appliedFilters.college) {
-                // IMPORTANT: For CFBD /players endpoint, 'team' parameter expects the full school name.
+                // IMPORTANT: For CFBD /roster endpoint, 'team' parameter expects the full school name.
                 // appliedFilters.college already holds the school's display name (e.g., "Auburn").
                 queryParams.append('team', appliedFilters.college);
                 console.log(`[DEBUG page.tsx] Searching players for college name: ${appliedFilters.college}`);
             }
             if (appliedFilters.playerName) {
-                queryParams.append('search', appliedFilters.playerName);
+                // --- UPDATED: The /roster endpoint does not have a 'search' parameter for player names.
+                // We will send 'playerName' as 'search' to our proxy, and the proxy will apply this filter
+                // after fetching the full roster from CFBD.
+                queryParams.append('search', appliedFilters.playerName); // Send to proxy for post-fetch filtering
+                console.log("[DEBUG page.tsx] playerName filter sent to proxy for server-side application.");
             }
             queryParams.append('limit', appliedFilters.maxPlayers.toString());
 
             
-
             console.log("[DEBUG page.tsx] appliedFilters.college before sending to proxy:", appliedFilters.college);
             const url = `/api/main-api?${queryParams.toString()}`;
             console.log("[DEBUG page.tsx] Full players proxy URL being sent:", url);    
