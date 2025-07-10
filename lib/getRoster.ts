@@ -3,19 +3,24 @@
 // Define your CollegeFootballData.com API key
 const CFBD_API_KEY = process.env.CFBD_API_KEY;
 
-// Interfaces (updated id type for CfbdPlayerRaw to correctly handle string IDs like '-5405')
+// Interfaces (UPDATED: CfbdPlayerRaw uses firstName and lastName directly)
 interface CfbdPlayerRaw {
-    id: number | string; // Correctly handles IDs that might come as numbers or strings
-    first_name: string;
-    last_name: string;
+    id: number | string;
+    firstName: string; // <--- CHANGED: Use firstName
+    lastName: string;  // <--- CHANGED: Use lastName
     team: string;
     weight: number | null;
     height: number | null;
     jersey: number | null;
     year: number;
     position: string;
-    home_city: string | null;
-    home_state: string | null;
+    homeCity: string | null; // Also noticed homeCity/State in logs, not home_city/state
+    homeState: string | null;
+    homeCountry: string | null;
+    homeLatitude: number | null;
+    homeLongitude: number | null;
+    homeCountyFIPS: string | null;
+    recruitIds: string[]; // Added this based on your debug log
     // Add any other fields you expect from the CFBD roster API
 }
 
@@ -61,33 +66,33 @@ export async function getRoster(year: string, teamName?: string, playerNameSearc
         }
 
         const rawPlayers: CfbdPlayerRaw[] = await cfbdResponse.json();
-        // Log raw players before any filtering to see initial state
         console.log(`[DEBUG getRoster] Raw players received from CFBD (first 5, BEFORE filter):`, rawPlayers.slice(0, 5));
 
-        // Filter out players with negative IDs and where first/last name are explicitly empty strings
+        // Filter out players with negative IDs and where firstName/lastName are explicitly empty strings
         const filteredRawPlayers = rawPlayers.filter(player => {
-            const playerIdAsNumber = Number(player.id); // Convert to number for robust comparison
-            return playerIdAsNumber >= 0 && (player.first_name !== '' && player.last_name !== '');
+            const playerIdAsNumber = Number(player.id);
+            // NOW using player.firstName and player.lastName from the raw object
+            return playerIdAsNumber >= 0 && (player.firstName !== '' && player.lastName !== '');
         });
 
-        // Log filtered raw players to inspect their first_name and last_name values
+        // Log filtered raw players to inspect their firstName and lastName values
         console.log(`[DEBUG getRoster] Filtered raw players (first 5, AFTER ID & name filter, checking raw names):`,
             filteredRawPlayers.slice(0, 5).map(p => ({
                 id: p.id,
-                first_name: p.first_name, // Log these as they are received from the raw API
-                last_name: p.last_name,   // Log these as they are received from the raw API
+                firstName: p.firstName, // Now correctly logging firstName
+                lastName: p.lastName,   // Now correctly logging lastName
                 team: p.team,
                 position: p.position,
                 jersey: p.jersey
             }))
         );
 
-        // Map filtered raw players to the CfbdPlayer interface (camelCase names)
+        // Map filtered raw players to the CfbdPlayer interface (which already uses camelCase)
         let formattedPlayers: CfbdPlayer[] = filteredRawPlayers.map(player => ({
             id: player.id.toString(),
-            firstName: player.first_name || '', // This mapping is correct
-            lastName: player.last_name || '',   // This mapping is correct
-            fullName: `${player.first_name || ''} ${player.last_name || ''}`.trim(),
+            firstName: player.firstName || '', // Direct mapping
+            lastName: player.lastName || '',   // Direct mapping
+            fullName: `${player.firstName || ''} ${player.lastName || ''}`.trim(),
             position: { displayName: player.position || 'N/A' },
             jersey: player.jersey ? player.jersey.toString() : 'N/A',
             team: {
@@ -96,7 +101,8 @@ export async function getRoster(year: string, teamName?: string, playerNameSearc
             },
             weight: player.weight || null,
             height: player.height || null,
-            hometown: player.home_city && player.home_state ? `${player.home_city}, ${player.home_state}` : player.home_city || player.home_state || null,
+            // Also updated these based on your log: homeCity, homeState (camelCase)
+            hometown: player.homeCity && player.homeState ? `${player.homeCity}, ${player.homeState}` : player.homeCity || player.homeState || null,
             teamColor: null,
             teamColorSecondary: null,
         }));
@@ -105,13 +111,12 @@ export async function getRoster(year: string, teamName?: string, playerNameSearc
         console.log(`[DEBUG getRoster] Formatted players (first 5, AFTER mapping, checking firstName/lastName):`,
             formattedPlayers.slice(0, 5).map(p => ({
                 id: p.id,
-                firstName: p.firstName, // Log these in camelCase
-                lastName: p.lastName,   // Log these in camelCase
+                firstName: p.firstName,
+                lastName: p.lastName,
                 fullName: p.fullName,
                 team: p.team
             }))
         );
-
 
         // Client-side filtering for player name if provided
         if (playerNameSearch) {
