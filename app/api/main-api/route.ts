@@ -27,20 +27,26 @@ interface FormattedTeamForFrontend {
     darkLogo: string;
 }
 
-// Interface for CFBD's /roster endpoint.
-// It returns player data, which is what your CfbdPlayerRaw likely was meant for.
+// UPDATED: Interface for CFBD's /roster endpoint.
+// This now accurately reflects the fields and their potential nullability from the /roster endpoint.
 interface CfbdPlayerRaw {
-    athlete_id: number;
-    first_name: string;
-    last_name: string;
-    team: string; // CFBD gives team name (e.g., "Florida State")
+    id: string; // The player ID from CFBD, provided as a string (e.g., "-5566", "2136301")
+    first_name: string | null; // Can be null or empty string
+    last_name: string | null;  // Can be null or empty string
+    team: string; // CFBD gives team name (e.g., "Central Michigan")
     weight: number | null;
     height: number | null;
-    jersey: number | null; // CFBD jersey is number
-    year: number | null;
-    position: string;
-    home_town: string | null; // Added based on typical /roster fields
-    eligibility: string | null; // Added based on typical /roster fields
+    jersey: number | null; // Can be null
+    year: number | null; // Player's academic year at the time of roster (e.g., 2)
+    position: string | null; // Can be null
+    home_town: string | null; // Specific town (might be null if homeCity/State are present)
+    home_city: string | null; // City part of hometown
+    home_state: string | null; // State part of hometown
+    home_country: string | null;
+    home_latitude: number | null;
+    home_longitude: number | null;
+    home_county_fips: number | null;
+    recruit_ids: number[] | null; // Array of numbers, can be null or empty
 }
 
 
@@ -49,8 +55,6 @@ export async function GET(request: NextRequest) {
     const target = searchParams.get('target');
     const year = searchParams.get('year');
     const teamName = searchParams.get('team');
-    // Note: The 'search' parameter (for player name) will now be handled on the proxy side
-    // because /roster endpoint does not have a 'search' query param.
     const playerNameSearch = searchParams.get('search'); // Get the search term for filtering
     const limit = searchParams.get('limit');
 
@@ -69,10 +73,9 @@ export async function GET(request: NextRequest) {
     try {
         let data: any;
 
-        // --- CHANGE target from 'players' to 'roster' ---
-        if (target === 'roster') { // CHANGE THIS LINE
+        if (target === 'roster') {
             // --- CFBD Roster API Call ---
-            let cfbdRosterUrl = `https://api.collegefootballdata.com/roster`; // CHANGE THIS ENDPOINT
+            let cfbdRosterUrl = `https://api.collegefootballdata.com/roster`;
             
             const queryParts = [];
             if (year) {
@@ -81,7 +84,6 @@ export async function GET(request: NextRequest) {
             if (teamName) {
                 queryParts.push(`team=${encodeURIComponent(teamName)}`);
             }
-            // Removed 'search' from queryParts as /roster doesn't have it directly
 
             if (queryParts.length > 0) {
                 cfbdRosterUrl += `?${queryParts.join('&')}`;
@@ -135,19 +137,21 @@ export async function GET(request: NextRequest) {
 
             // Transform CFBD player data to the CfbdPlayer interface expected by frontend
             data = playersToReturn.map(player => ({
-                id: player.athlete_id.toString(),
+                id: player.id, // Use player.id directly as it's already a string in /roster
                 firstName: player.first_name || 'N/A',
                 lastName: player.last_name || 'N/A',
                 fullName: `${player.first_name || ''} ${player.last_name || ''}`.trim(),
                 position: { displayName: player.position || 'N/A' },
-                jersey: player.jersey ? player.jersey.toString() : 'N/A',
+                // Robustly convert jersey to string, handling null/undefined
+                jersey: player.jersey?.toString() ?? 'N/A', // Use optional chaining and nullish coalescing
                 team: {
                     displayName: player.team || 'N/A',
                     slug: player.team ? player.team.toLowerCase().replace(/\s/g, '-') : 'N/A'
                 },
                 weight: player.weight,
                 height: player.height,
-                hometown: player.home_town || null, // Now available from /roster
+                // Combine home_town, home_city, home_state for hometown display
+                hometown: player.home_town || (player.home_city && player.home_state ? `${player.home_city}, ${player.home_state}` : player.home_city || player.home_state || null),
                 teamColor: null, // Still not directly from /roster
                 teamColorSecondary: null, // Still not directly from /roster
             }));
