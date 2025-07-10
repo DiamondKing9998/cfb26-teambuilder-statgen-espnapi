@@ -1,16 +1,16 @@
 // lib/getRoster.ts
 
 // Define your CollegeFootballData.com API key
-const CFBD_API_KEY = process.env.CFBD_API_KEY; // It should be set in .env.local
+const CFBD_API_KEY = process.env.CFBD_API_KEY;
 
-// Interfaces (copy these from your route.ts or define them globally if shared more widely)
+// Interfaces (kept for context, assuming they are defined elsewhere or here)
 interface CfbdPlayerRaw {
     id: number;
     first_name: string;
     last_name: string;
     team: string;
     weight: number | null;
-    height: number | null; // Note: CFBD often returns height in inches
+    height: number | null;
     jersey: number | null;
     year: number;
     position: string;
@@ -40,7 +40,7 @@ export async function getRoster(year: string, teamName?: string, playerNameSearc
         throw new Error('CollegeFootballData.com API key not configured.');
     }
 
-    let cfbdPlayersUrl = `https://api.collegefootballdata.com/roster?year=${year}`; // Corrected endpoint
+    let cfbdPlayersUrl = `https://api.collegefootballdata.com/roster?year=${year}`;
     if (teamName) {
         cfbdPlayersUrl += `&team=${encodeURIComponent(teamName)}`;
     }
@@ -61,9 +61,12 @@ export async function getRoster(year: string, teamName?: string, playerNameSearc
         }
 
         const rawPlayers: CfbdPlayerRaw[] = await cfbdResponse.json();
-        console.log(`[DEBUG getRoster] Raw players received from CFBD (first 10):`, rawPlayers.slice(0, 10)); // Log first 10 for inspection
+        console.log(`[DEBUG getRoster] Raw players received from CFBD (first 10):`, rawPlayers.slice(0, 10));
 
-        let formattedPlayers: CfbdPlayer[] = rawPlayers.map(player => ({
+        // --- ADD THIS FILTER LINE HERE ---
+        const filteredRawPlayers = rawPlayers.filter(player => player.id >= 0); // Filter out players with negative IDs
+
+        let formattedPlayers: CfbdPlayer[] = filteredRawPlayers.map(player => ({ // Use filteredRawPlayers here
             id: player.id.toString(),
             firstName: player.first_name || '',
             lastName: player.last_name || '',
@@ -77,8 +80,8 @@ export async function getRoster(year: string, teamName?: string, playerNameSearc
             weight: player.weight || null,
             height: player.height || null,
             hometown: player.home_city && player.home_state ? `${player.home_city}, ${player.home_state}` : player.home_city || player.home_state || null,
-            teamColor: null, // Not directly available from roster endpoint
-            teamColorSecondary: null, // Not directly available from roster endpoint
+            teamColor: null,
+            teamColorSecondary: null,
         }));
 
         // Client-side filtering for player name if provided
