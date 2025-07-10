@@ -3,9 +3,9 @@
 // Define your CollegeFootballData.com API key
 const CFBD_API_KEY = process.env.CFBD_API_KEY;
 
-// Interfaces (kept for context, assuming they are defined elsewhere or here)
+// Interfaces (updated id type for CfbdPlayerRaw)
 interface CfbdPlayerRaw {
-    id: number;
+    id: number | string; // <--- CHANGED: id can be number or string
     first_name: string;
     last_name: string;
     team: string;
@@ -63,10 +63,15 @@ export async function getRoster(year: string, teamName?: string, playerNameSearc
         const rawPlayers: CfbdPlayerRaw[] = await cfbdResponse.json();
         console.log(`[DEBUG getRoster] Raw players received from CFBD (first 10):`, rawPlayers.slice(0, 10));
 
-        // --- ADD THIS FILTER LINE HERE ---
-        const filteredRawPlayers = rawPlayers.filter(player => player.id >= 0); // Filter out players with negative IDs
+        // --- UPDATED FILTER LOGIC ---
+        const filteredRawPlayers = rawPlayers.filter(player => {
+            // Ensure ID is treated as a number for comparison
+            const playerIdAsNumber = Number(player.id);
+            // Filter out players where ID is negative OR where first/last name is explicitly empty
+            return playerIdAsNumber >= 0 && (player.first_name !== '' && player.last_name !== '');
+        });
 
-        let formattedPlayers: CfbdPlayer[] = filteredRawPlayers.map(player => ({ // Use filteredRawPlayers here
+        let formattedPlayers: CfbdPlayer[] = filteredRawPlayers.map(player => ({
             id: player.id.toString(),
             firstName: player.first_name || '',
             lastName: player.last_name || '',
