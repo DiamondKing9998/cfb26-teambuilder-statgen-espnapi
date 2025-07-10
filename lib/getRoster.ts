@@ -61,6 +61,7 @@ export async function getRoster(year: string, teamName?: string, playerNameSearc
         }
 
         const rawPlayers: CfbdPlayerRaw[] = await cfbdResponse.json();
+        console.log(`[DEBUG getRoster] Raw players received from CFBD (first 10):`, rawPlayers.slice(0, 10)); // Log first 10 for inspection
 
         let formattedPlayers: CfbdPlayer[] = rawPlayers.map(player => ({
             id: player.id.toString(),
