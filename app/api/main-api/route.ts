@@ -28,7 +28,6 @@ interface FormattedTeamForFrontend {
 }
 
 // NEW/REVISED: Interface for CFBD's /players endpoint (which seems to be what you had before for players)
-// Note: CFBD's jersey is 'int', not 'string' like ESPN's.
 interface CfbdPlayerRaw {
     athlete_id: number;
     first_name: string;
@@ -39,7 +38,6 @@ interface CfbdPlayerRaw {
     jersey: number | null; // CFBD jersey is number
     year: number | null;
     position: string;
-    // other fields like home_city, headshot_url etc.
 }
 
 
@@ -47,7 +45,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const target = searchParams.get('target');
     const year = searchParams.get('year');
-    const teamName = searchParams.get('team'); // This will be the collegeDisplayName from frontend
+    const teamName = searchParams.get('team'); // This will be the collegeDisplayName from frontend (e.g., "Auburn")
     const search = searchParams.get('search');
     const limit = searchParams.get('limit');
 
@@ -73,6 +71,7 @@ export async function GET(request: NextRequest) {
             }
             if (teamName) {
                 // CFBD's /players endpoint expects 'team' as the full team name (e.g., "Auburn")
+                // Make sure teamName here is indeed the actual name and not an ID.
                 queryParts.push(`team=${encodeURIComponent(teamName)}`);
             }
             if (search) {

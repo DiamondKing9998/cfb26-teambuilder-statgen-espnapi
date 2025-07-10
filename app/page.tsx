@@ -447,9 +447,11 @@ const CollegeFootballApp: React.FC = () => {
             }
             queryParams.append('limit', appliedFilters.maxPlayers.toString());
 
+            
 
+            console.log("[DEBUG page.tsx] appliedFilters.college before sending to proxy:", appliedFilters.college);
             const url = `/api/main-api?${queryParams.toString()}`;
-            console.log("[DEBUG page.tsx] Full players proxy URL being sent:", url);
+            console.log("[DEBUG page.tsx] Full players proxy URL being sent:", url);    
 
             const response = await fetch(url);
 
