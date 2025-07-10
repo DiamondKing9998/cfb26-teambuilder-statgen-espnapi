@@ -383,14 +383,17 @@ const CollegeFootballApp: React.FC = () => {
                 const teamsData: FormattedTeamForFrontend[] = await teamsResponse.json();
                 console.log("Raw teamsData from API (for filters) via proxy:", teamsData);
 
-                // --- MODIFIED: Include all classifications (not just FBS/FCS) ---
-                // This will include D2, D3, NAIA, etc., if your proxy passes them from CFBD.
-                // It will also handle UTRGV if CFBD includes them for 2024.
-                // For New Haven (DII), it will now appear if present in CFBD data and passed by proxy.
-                const sortedTeams = [...teamsData].sort((a, b) => a.collegeDisplayName.localeCompare(b.collegeDisplayName));
+                // --- MODIFIED: Explicitly filter for ONLY FBS and FCS classifications ---
+                const fbsTeams = teamsData.filter(team => team.classification?.toUpperCase() === 'FBS');
+                const fcsTeams = teamsData.filter(team => team.classification?.toUpperCase() === 'FCS');
+
+                fbsTeams.sort((a, b) => a.collegeDisplayName.localeCompare(b.collegeDisplayName));
+                fcsTeams.sort((a, b) => a.collegeDisplayName.localeCompare(b.collegeDisplayName));
+
+                const sortedAndFilteredTeams = [...fbsTeams, ...fcsTeams];
                 
                 const nameToIdMap = new Map<string, string>(); // Changed to string for ID
-                const collegesForDropdown = sortedTeams.map(team => {
+                const collegesForDropdown = sortedAndFilteredTeams.map(team => {
                     nameToIdMap.set(team.collegeDisplayName, team.id); // Use collegeDisplayName for map key
                     return { name: team.collegeDisplayName, id: team.id };
                 });
