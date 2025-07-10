@@ -103,6 +103,8 @@ header p {
     flex-grow: 1; /* Allows it to take up remaining vertical space */
     padding: 20px;
     gap: 20px; /* Space between filter sidebar and results */
+    /* ADDED: Ensure items align to the top within the flex container */
+    align-items: flex-start;
 }
 
 .filter-sidebar {
@@ -115,13 +117,18 @@ header p {
     flex-direction: column;
     gap: 25px; /* Space between filter groups */
     border: 1px solid var(--color-border-dark); /* Dark theme border */
+    /* ADDED: Ensure content inside the sidebar aligns to the top */
+    justify-content: flex-start;
 }
 
 .filter-form {
     display: flex;
     flex-direction: column;
     gap: 25px;
-    flex-grow: 1; /* Make the form fill the sidebar */
+    /* CHANGED: Remove flex-grow: 1; if it exists, or set to 0. */
+    /* This is the key change to stop the form from stretching. */
+    flex-grow: 0; /* Ensures the form only takes up the space it needs */
+    /* No need for height: 100%; as it can cause issues with flex-grow: 0 */
 }
 
 .filter-group {
@@ -177,9 +184,13 @@ header p {
 .button-group {
     display: flex;
     gap: 15px; /* Space between buttons */
-    margin-top: auto; /* Push buttons to the bottom of the sidebar */
+    /* CHANGED: Remove margin-top: auto; */
+    /* This was pushing the buttons to the bottom of the stretched filter-form. */
+    /* Now that filter-form isn't stretching, the buttons will flow naturally. */
     padding-top: 10px; /* Add some padding above buttons */
     border-top: 2px solid var(--color-background-dark); /* Dark theme border */
+    /* ADDED: A normal margin-top to separate it from the last filter group */
+    margin-top: 15px; /* Adjust as needed for desired spacing */
 }
 
 .submit-button,
@@ -310,7 +321,7 @@ footer {
 
 .player-profile-header .back-link {
     /* Styles are mostly handled by Tailwind classes directly in page.tsx:
-       `absolute top-4 left-4 text-blue-300 hover:text-blue-500` */
+        `absolute top-4 left-4 text-blue-300 hover:text-blue-500` */
     text-decoration: none;
     font-weight: 600;
     display: flex;
@@ -357,8 +368,8 @@ footer {
 /* Section Titles (e.g., AI Overview, Career Statistics) on player detail page */
 .text-blue-400 { /* This is a Tailwind class, but for clarity, ensure its use */
     /* This rule ensures that Tailwind's `text-blue-400` which is used for section titles
-       like "AI Overview" remains consistent with your theme. No direct CSS variables needed here
-       if Tailwind is controlling it. */
+        like "AI Overview" remains consistent with your theme. No direct CSS variables needed here
+        if Tailwind is controlling it. */
 }
 
 /* Placeholder text for AI and Stats */
