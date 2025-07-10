@@ -6,11 +6,6 @@ import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 
 // --- Interfaces for CollegeFootballData.com API ---
-// NOTE: These interfaces are for CFBD API, but now the 'players' target
-// in the /api/main-api proxy will return ESPN player data.
-// You'll need to update CfbdPlayer interface to match ESPNRosterPlayer from your ai-overview/route.ts.
-// I'll make that change here for CfbdPlayer to reflect the ESPN player data structure.
-
 interface CfbdPlayer { // This now maps to ESPNRosterPlayer from your ai-overview/route.ts
     id: string;
     firstName: string;
@@ -388,17 +383,14 @@ const CollegeFootballApp: React.FC = () => {
                 const teamsData: FormattedTeamForFrontend[] = await teamsResponse.json();
                 console.log("Raw teamsData from API (for filters) via proxy:", teamsData);
 
-                // Separate FBS and FCS teams, then sort each group, then concatenate
-                const fbsTeams = teamsData.filter(team => team.classification?.toUpperCase() === 'FBS');
-                const fcsTeams = teamsData.filter(team => team.classification?.toUpperCase() === 'FCS');
-
-                fbsTeams.sort((a, b) => a.collegeDisplayName.localeCompare(b.collegeDisplayName));
-                fcsTeams.sort((a, b) => a.collegeDisplayName.localeCompare(b.collegeDisplayName));
-
-                const sortedAndFilteredTeams = [...fbsTeams, ...fcsTeams];
-
+                // --- MODIFIED: Include all classifications (not just FBS/FCS) ---
+                // This will include D2, D3, NAIA, etc., if your proxy passes them from CFBD.
+                // It will also handle UTRGV if CFBD includes them for 2024.
+                // For New Haven (DII), it will now appear if present in CFBD data and passed by proxy.
+                const sortedTeams = [...teamsData].sort((a, b) => a.collegeDisplayName.localeCompare(b.collegeDisplayName));
+                
                 const nameToIdMap = new Map<string, string>(); // Changed to string for ID
-                const collegesForDropdown = sortedAndFilteredTeams.map(team => {
+                const collegesForDropdown = sortedTeams.map(team => {
                     nameToIdMap.set(team.collegeDisplayName, team.id); // Use collegeDisplayName for map key
                     return { name: team.collegeDisplayName, id: team.id };
                 });
